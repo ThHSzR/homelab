@@ -15,12 +15,6 @@ function getInsights(status, health) {
         detail: status.disk.percent + '% usado. Revise logs e arquivos antes que os serviços fiquem sem espaço.', href: '#overview' });
   }
   if (healthReady) {
-    for (const [id, name] of [['ssh', 'SSH'], ['bom-dia', 'Bom Dia'], ['external', 'Conexão externa']]) {
-      const service = health.services?.[id];
-      if (service?.status === 'offline' && service.failures >= 2)
-        issues.push({ level: 'warning', title: name + ' indisponível',
-          detail: 'Falhou em ' + service.failures + ' verificações seguidas. Veja o histórico no Health.', href: '#watchdog' });
-    }
     const minecraft = health.services?.minecraft;
     if (minecraft?.status === 'online' && Number.isFinite(minecraft.process?.memoryPercent) && minecraft.process.memoryPercent >= 35)
       issues.push({ level: 'warning', title: 'Minecraft usa muita RAM',

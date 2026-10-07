@@ -2,21 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getInsights } = require('../public/insights');
 
-test('alerts use fresh readings and require sustained service failures', () => {
+test('alerts use fresh readings and omit service outages', () => {
   const status = { stale: false, battery: { available: true, percentage: 12, status: 'DISCHARGING', temperature: 43 },
     disk: { percent: 90 } };
   const health = { stale: false, services: {
-    ssh: { status: 'offline', failures: 1 },
+    ssh: { status: 'offline', failures: 3 },
     'bom-dia': { status: 'offline', failures: 3 },
     external: { status: 'online', failures: 0 },
     minecraft: { status: 'online', process: { memoryPercent: 38 } }
   } };
   const result = getInsights(status, health);
   assert.deepEqual(result.issues.map(issue => issue.title), [
-    'Bateria baixa', 'Bateria quente', 'Armazenamento quase cheio', 'Bom Dia indisponível', 'Minecraft usa muita RAM'
+    'Bateria baixa', 'Bateria quente', 'Armazenamento quase cheio', 'Minecraft usa muita RAM'
   ]);
   assert.equal(result.complete, true);
-  assert.equal(result.issues.some(issue => issue.title.includes('SSH')), false);
+  assert.equal(result.issues.some(issue => /SSH|Bom Dia/.test(issue.title)), false);
 });
 
 test('stale and missing readings never produce a false all-clear', () => {
