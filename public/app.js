@@ -58,3 +58,41 @@ async function modules() {
 }
 $('refresh').addEventListener('click', () => { update(); modules(); });
 update(); modules(); setInterval(update, 15000);
+
+const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa' };
+async function health() {
+  try {
+    const response = await fetch('/api/health', { cache: 'no-store', signal: AbortSignal.timeout(7000) });
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    $('health-summary').textContent = data.stale ? 'Monitor sem leitura recente' : 'Última leitura: ' + new Date(data.timestamp).toLocaleTimeString('pt-BR');
+    $('health-list').replaceChildren(...Object.entries(data.services).map(([id, s]) => {
+      const card = el('article', '', 'panel');
+      card.append(el('strong', healthNames[id] || id), el('p', data.stale ? 'Dados desatualizados' : labels[s.status] || s.status, 'status ' + (data.stale ? 'unknown' : s.status)),
+        el('p', s.latencyMs + ' ms · duração da verificação'),
+        el('small', 'Última mudança: ' + new Date(s.changedAt).toLocaleString('pt-BR')),
+        el('small', 'Visto online: ' + (s.lastSeen ? new Date(s.lastSeen).toLocaleString('pt-BR') : 'Ainda não')));
+      const recent = data.history.slice(-20);
+      const strip = el('div', '', 'health-history');
+      recent.forEach(row => {
+        const status = row.services[id]?.status || 'unknown';
+        const dot = el('span', '', 'health-dot ' + status);
+        dot.title = new Date(row.timestamp).toLocaleString('pt-BR') + ' · ' + (labels[status] || status);
+        strip.append(dot);
+      });
+      strip.setAttribute('aria-label', 'Últimas ' + recent.length + ' verificações; verde indica online');
+      card.append(strip);
+      return card;
+    }));
+    $('health-recovery').textContent = (data.recovery.enabled ? 'Recuperação bom-dia habilitada' : 'Recuperação automática desativada') +
+      ' · ' + data.recovery.attempts + '/3 tentativas usadas · cooldown de 10 min.' +
+      (data.recovery.locked ? ' Recuperação bloqueada: verifique o arquivo de estado.' : '') +
+      (data.recovery.lastResult ? ' ' + data.recovery.lastResult + '.' : '') +
+      (data.recovery.recommendation ? ' ' + data.recovery.recommendation : '');
+  } catch {
+    $('health-summary').textContent = 'Monitor indisponível · dados anteriores podem estar desatualizados';
+    $('health-list').replaceChildren(el('p', 'Aguardando nova leitura do watchdog.', 'empty'));
+  }
+}
+$('refresh').addEventListener('click', health);
+health(); setInterval(health, 15000);

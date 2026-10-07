@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('node:path');
 const { collect } = require('./lib/collectors');
 const modules = require('./modules.json');
+const { readHealth } = require('./lib/watchdog');
 const app = express();
 app.disable('x-powered-by');
 let snapshot = null;
@@ -26,6 +27,11 @@ app.get('/api/status', (req, res) => {
   res.json({ ...snapshot, stale: Date.now() - Date.parse(snapshot.timestamp) > 35000 });
 });
 app.get('/api/modules', (req, res) => res.json(modules));
+app.get('/api/health', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await readHealth()); }
+  catch { res.status(503).json({ error: 'Watchdog aguardando primeira leitura ou estado indisponível' }); }
+});
 app.use(express.static(path.join(__dirname, 'public')));
 const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => {
   console.log('TH HomeLab disponível na porta', server.address().port);

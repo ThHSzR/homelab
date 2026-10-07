@@ -258,3 +258,49 @@ Também é recomendado utilizar autenticação por chave SSH e manter a autentic
 ---
 
 Desenvolvido por [Thiago Henrique Souza Rodrigues](https://github.com/ThHSzR).
+## Health / Watchdog
+
+O processo independente `homelab-watchdog` faz uma rodada a cada 30 segundos, sem sobreposição e sem dependências novas:
+
+- Dashboard: HTTP `127.0.0.1:3000/healthz` (acompanha `PORT`).
+- SSH: conexão TCP local na porta 8022; não testa autenticação.
+- Bom-dia: `sv status $PREFIX/var/service/bom-dia`; indisponibilidade de runit aparece como sem leitura.
+- Internet: HTTPS para `https://connectivitycheck.gstatic.com/generate_204`, com timeout de 4 segundos. Uma falha indica indisponibilidade desse destino, não prova que toda a internet caiu. Há uma requisição externa por rodada.
+
+`GET /api/health` retorna estado, duração da verificação em `latencyMs`, `checkedAt`, `lastSeen`, `changedAt`, falhas consecutivas, histórico e orçamento de recuperação. Retorna 503 até existir estado legível; `stale: true` indica mais de 90 segundos sem leitura. O dashboard mostra quatro cartões e as últimas 20 verificações.
+
+O monitor grava `~/services/state/watchdog.json` por substituição atômica e reescreve `watchdog.jsonl` com as últimas 120 rodadas (cerca de uma hora). O histórico é limitado por amostras, não um registro permanente. A latência do runit mede a consulta ao supervisor, não a execução da automação. `WATCHDOG_STATE_DIR` permite usar um diretório alternativo, inclusive nos testes locais. Execute apenas uma instância gravadora nesse diretório.
+
+### Atualizar no Termux
+
+Depois de obter esta branch ou sua versão integrada:
+
+```sh
+cd ~/services/homelab
+npm ci
+pm2 startOrReload ecosystem.config.cjs
+pm2 save
+pm2 status
+pm2 logs homelab-watchdog --lines 30
+curl http://127.0.0.1:3000/api/health
+```
+
+O `pm2 save` inclui o watchdog na restauração existente pelo Termux:Boot (`pm2 resurrect`); não é necessário mudar o script de boot. Também é possível executar `node watchdog.js` fora do PM2 para diagnóstico, parando antes a instância gerenciada.
+
+### Recuperação opcional do bom-dia
+
+Por padrão o watchdog somente monitora e recomenda verificar o bom-dia. Dashboard e SSH continuam sob seus gerenciadores atuais; o watchdog não os reinicia.
+
+Para habilitar a recuperação do bom-dia, defina `WATCHDOG_RECOVER_BOM_DIA: '1'` no `env` do **homelab-watchdog** em `ecosystem.config.cjs` e recarregue o PM2. A única ação permitida é `sv up` no caminho fixo do bom-dia, sem shell ou comando recebido pela API. Exige três falhas consecutivas, estado `down:` com `normally up`, ausência do arquivo `down` e uma nova confirmação imediatamente antes do comando. Serviços parados intencionalmente ou com estado desconhecido não são recuperados.
+
+Há cooldown de 10 minutos e limite total de três tentativas, persistidos antes da ação. Sucesso não zera esse orçamento; reiniciar o monitor também não. Falha ao gravar impede a ação. Estado corrompido bloqueia recuperação e o bloqueio fica persistido. O resultado de `sv up` apenas confirma o comando; a disponibilidade é validada na rodada seguinte.
+
+Após corrigir a causa, para rearmar manualmente: pare `homelab-watchdog`, faça uma cópia de `watchdog.json`, remova somente esse arquivo e inicie o watchdog novamente. Isso também reinicia o histórico em memória. Não apague estado para contornar falhas recorrentes. Para desativar, defina `WATCHDOG_RECOVER_BOM_DIA: '0'` no mesmo `env` e execute `pm2 startOrReload ecosystem.config.cjs --update-env`, seguido de `pm2 save`. Confira `recovery.enabled` na API.
+
+### Testes
+
+```sh
+npm test
+```
+
+Os testes cobrem transições, histórico limitado, last-seen, probes HTTP/TCP, API 503/fresh/stale, cooldown, limite persistido, parada manual, estado corrompido, falha de gravação e ciclos sobrepostos. Usam serviços locais e diretórios temporários; não chamam recuperação real no Termux.

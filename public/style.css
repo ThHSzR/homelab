@@ -581,3 +581,10 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
     transition-duration: .01ms !important;
   }
 }
+
+.health-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.health-history { display: flex; gap: 4px; margin-top: 16px; }
+.health-dot { flex: 1; height: 8px; border-radius: 3px; background: var(--orange); }
+.health-dot.online { background: var(--green); }
+#health-recovery { font-size: .78rem; }
+@media (max-width: 760px) { .health-grid { grid-template-columns: 1fr; } }

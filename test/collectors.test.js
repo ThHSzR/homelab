@@ -14,7 +14,7 @@ test('tailnet detection excludes unrelated 100.x and down interfaces', () => {
 });
 test('hung external collector is bounded', async () => {
   const start = Date.now();
-  const result = await command('sleep', ['30'], 1);
+  const result = await command(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], 1);
   assert.equal(result.ok, false);
   assert.ok(Date.now() - start < 4000);
 });
