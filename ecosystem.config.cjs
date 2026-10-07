@@ -10,5 +10,5 @@ module.exports = { apps: [{ name: 'homelab-status', script: 'server.js', cwd: __
 }, { name: 'homelab-watchdog', script: 'watchdog.js', cwd: __dirname,
   interpreter: process.execPath, instances: 1, exec_mode: 'fork', autorestart: true,
   restart_delay: 5000, max_memory_restart: '100M', time: true,
-  env: { NODE_ENV: 'production', PORT: '3000', WATCHDOG_RECOVER_BOM_DIA: '0' }
+  env: { NODE_ENV: 'production', PORT: '3000', WATCHDOG_RECOVER_BOM_DIA: '0', MINECRAFT_PORT: '25565' }
 }] };

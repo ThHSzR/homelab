@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const bytes = n => n == null ? '—' : (n / 1073741824).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' GB';
 const duration = n => { n = Math.max(0, Math.floor(n || 0)); const d = Math.floor(n / 86400), h = Math.floor(n % 86400 / 3600), m = Math.floor(n % 3600 / 60); return (d ? d + 'd ' : '') + h + 'h ' + m + 'm'; };
-const labels = { online: 'Online', stopped: 'Parado', offline: 'Offline', unknown: 'Sem leitura', unmanaged: 'Sem PM2', errored: 'Erro', launching: 'Iniciando' };
+const labels = { online: 'Online', stopped: 'Parado', offline: 'Offline', unknown: 'Sem leitura', unmanaged: 'Sem PM2', errored: 'Erro', launching: 'Iniciando', possible: 'Possível' };
 function el(tag, text, cls) { const node = document.createElement(tag); node.textContent = text; if (cls) node.className = cls; return node; }
 function render(data) {
   $('connection').className = 'banner' + (data.stale ? ' warn' : '');
@@ -59,7 +59,7 @@ async function modules() {
 $('refresh').addEventListener('click', () => { update(); modules(); });
 update(); modules(); setInterval(update, 15000);
 
-const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa' };
+const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa', minecraft: 'Minecraft · Java' };
 async function health() {
   try {
     const response = await fetch('/api/health', { cache: 'no-store', signal: AbortSignal.timeout(7000) });
@@ -84,6 +84,7 @@ async function health() {
       card.append(strip);
       return card;
     }));
+    renderMinecraft(data.services.minecraft, data.stale);
     $('health-recovery').textContent = (data.recovery.enabled ? 'Recuperação bom-dia habilitada' : 'Recuperação automática desativada') +
       ' · ' + data.recovery.attempts + '/3 tentativas usadas · cooldown de 10 min.' +
       (data.recovery.locked ? ' Recuperação bloqueada: verifique o arquivo de estado.' : '') +
@@ -92,7 +93,32 @@ async function health() {
   } catch {
     $('health-summary').textContent = 'Monitor indisponível · dados anteriores podem estar desatualizados';
     $('health-list').replaceChildren(el('p', 'Aguardando nova leitura do watchdog.', 'empty'));
+    renderMinecraft(null, true);
   }
 }
 $('refresh').addEventListener('click', health);
 health(); setInterval(health, 15000);
+
+function renderMinecraft(minecraft, stale) {
+  if (!minecraft || stale) {
+    $('minecraft-updated').textContent = 'Sem leitura recente';
+    $('minecraft-state').textContent = 'Aguardando monitor';
+    $('minecraft-detail').textContent = 'Dados indisponíveis ou desatualizados';
+    $('minecraft-memory').textContent = '—';
+    $('minecraft-cpu').textContent = '—';
+    $('minecraft-players').textContent = '—';
+    $('minecraft-process').textContent = 'Verifique o processo homelab-watchdog no PM2.';
+    return;
+  }
+  $('minecraft-updated').textContent = 'Porta :' + (minecraft.port || 25565);
+  $('minecraft-state').textContent = ({ online: 'Servidor respondendo', possible: 'Porta aberta · não confirmado', offline: 'Servidor indisponível' })[minecraft.status] || 'Sem leitura';
+  $('minecraft-detail').textContent = minecraft.detail + (minecraft.version ? ' · ' + minecraft.version : '');
+  $('minecraft-memory').textContent = minecraft.process?.rssBytes == null ? '—' :
+    (minecraft.process.rssBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' MB' +
+    (minecraft.process.memoryPercent == null ? '' : ' · ' + minecraft.process.memoryPercent.toLocaleString('pt-BR') + '% da RAM');
+  $('minecraft-cpu').textContent = minecraft.process?.cpuPercent == null ? 'Aguardando 2ª leitura' : minecraft.process.cpuPercent + '%';
+  $('minecraft-players').textContent = minecraft.players == null ? '—' : minecraft.players + ' / ' + (minecraft.maxPlayers ?? '—');
+  $('minecraft-process').textContent = minecraft.process ?
+    'Processo Java candidato: ' + minecraft.process.jar + ' · PID ' + minecraft.process.pid + '. O vínculo com a porta não foi verificado.' :
+    'Processo Java não identificado; o estado da porta é medido separadamente.';
+}

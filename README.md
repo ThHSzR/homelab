@@ -304,3 +304,11 @@ npm test
 ```
 
 Os testes cobrem transições, histórico limitado, last-seen, probes HTTP/TCP, API 503/fresh/stale, cooldown, limite persistido, parada manual, estado corrompido, falha de gravação e ciclos sobrepostos. Usam serviços locais e diretórios temporários; não chamam recuperação real no Termux.
+
+## Minecraft no dashboard
+
+A seção Minecraft e o cartão no Health consultam o servidor Java Edition local na porta `25565` a cada 30 segundos. O monitor envia uma consulta do protocolo de status do Minecraft, sem entrar no jogo e sem autenticação. Quando recebe uma resposta válida, mostra versão e jogadores. Uma porta aberta sem resposta válida aparece como **possível**, pois alguns servidores desativam o status ou usam outro protocolo.
+
+O monitor procura processos Java executados com `-jar` no `/proc` do Termux. Quando encontra um candidato identificável, mostra PID, nome do arquivo `.jar`, memória residente (RAM), fração da RAM do dispositivo e uso aproximado de CPU. A CPU precisa de duas leituras para calcular uma taxa; pode passar de 100% em um processo com várias threads. Quando há mais de um processo Java e não é possível escolher um candidato com segurança, o painel não atribui consumo a um servidor específico. A consulta da porta e a seleção do processo são independentes; o painel não afirma que o processo selecionado é necessariamente o dono da porta. O HomeLab não lê nem expõe argumentos completos da linha de comando.
+
+Para usar uma porta diferente, altere `MINECRAFT_PORT` no `env` do `homelab-watchdog` em `ecosystem.config.cjs`, rode `pm2 startOrReload ecosystem.config.cjs --update-env` e `pm2 save`. Em seguida, consulte `/api/health` e procure `services.minecraft`. Em computadores sem `/proc` acessível, o status da porta continua disponível, mas o consumo do processo não aparece. O HomeLab apenas observa o Minecraft; não inicia nem reinicia o servidor.

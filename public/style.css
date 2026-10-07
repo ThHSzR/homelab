@@ -588,3 +588,13 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 .health-dot.online { background: var(--green); }
 #health-recovery { font-size: .78rem; }
 @media (max-width: 760px) { .health-grid { grid-template-columns: 1fr; } }
+
+.status.possible { color: var(--orange); border-color: rgba(242,183,102,.20); background: rgba(242,183,102,.07); }
+.minecraft-card { padding: 24px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: linear-gradient(145deg, rgba(0,124,255,.08), rgba(255,255,255,.02)); }
+.minecraft-card h3 { margin: 12px 0 6px; font-size: 1.5rem; }
+.minecraft-card p { margin: 0; font-size: .8rem; }
+.minecraft-metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin: 22px 0 14px; }
+.minecraft-metrics div { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.025); }
+.minecraft-metrics small { display: block; font-size: .62rem; letter-spacing: .06em; }
+.minecraft-metrics strong { display: block; margin-top: 8px; font-size: 1.1rem; }
+@media (max-width: 520px) { .minecraft-metrics { grid-template-columns: 1fr; } }
