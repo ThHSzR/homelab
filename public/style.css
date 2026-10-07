@@ -598,3 +598,15 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 .minecraft-metrics small { display: block; font-size: .62rem; letter-spacing: .06em; }
 .minecraft-metrics strong { display: block; margin-top: 8px; font-size: 1.1rem; }
 @media (max-width: 520px) { .minecraft-metrics { grid-template-columns: 1fr; } }
+
+.minecraft-heading { display: flex; align-items: center; gap: 12px; }
+.minecraft-heading img { width: 56px; height: 56px; image-rendering: pixelated; filter: drop-shadow(0 8px 12px rgba(0,0,0,.36)); }
+.alerts-list { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius); background: rgba(255,255,255,.02); }
+.alert-row { display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 15px 20px; text-decoration: none; }
+.alert-row + .alert-row { border-top: 1px solid var(--line); }
+.alert-row:hover { background: rgba(0,124,255,.06); }
+.alert-row strong, .alert-row small { display: block; }
+.alert-row small { margin-top: 3px; font-size: .72rem; }
+.alert-mark { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border-radius: 9px; background: rgba(242,183,102,.12); color: var(--orange); font-weight: 850; }
+.alert-row.critical .alert-mark { background: rgba(255,108,108,.16); color: #ff9292; }
+.alert-arrow { margin-left: auto; color: var(--muted-soft); }

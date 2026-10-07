@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Bloco de grama">
+  <defs>
+    <clipPath id="left"><path d="M5 17 32 30v28L5 45Z"/></clipPath>
+    <clipPath id="right"><path d="M32 30 59 17v28L32 58Z"/></clipPath>
+    <clipPath id="top"><path d="M5 17 32 4l27 13-27 13Z"/></clipPath>
+  </defs>
+  <path d="M5 17 32 4l27 13v28L32 58 5 45Z" fill="#251910" stroke="#17251c" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M5 17 32 30v28L5 45Z" fill="#795034"/>
+  <path d="M32 30 59 17v28L32 58Z" fill="#553b29"/>
+  <path d="M5 17 32 4l27 13-27 13Z" fill="#65a847"/>
+  <g clip-path="url(#top)" fill="#83c65a">
+    <path d="M8 17h8v4H8zM23 8h8v4h-8zM38 9h7v4h-7zM44 17h9v4h-9zM28 19h8v4h-8z"/>
+  </g>
+  <g clip-path="url(#top)" fill="#3b7b3a">
+    <path d="M16 14h6v4h-6zM34 14h8v4h-8zM23 24h7v4h-7zM47 14h5v3h-5z"/>
+  </g>
+  <g clip-path="url(#left)">
+    <path d="M5 17 32 30v7L5 24Z" fill="#4d963d"/>
+    <path d="M8 27h5v3H8zM20 34h5v4h-5zM9 39h7v4H9zM26 47h6v3h-6z" fill="#a9754a"/>
+    <path d="M16 42h5v3h-5zM5 33h5v4H5z" fill="#513729"/>
+    <path d="M16 25h5v7h-5zM25 29h4v8h-4z" fill="#3d7f35"/>
+  </g>
+  <g clip-path="url(#right)">
+    <path d="M32 30 59 17v7L32 37Z" fill="#377d39"/>
+    <path d="M38 39h5v5h-5zM50 29h5v4h-5zM47 44h6v4h-6zM33 51h5v3h-5z" fill="#87603d"/>
+    <path d="M45 37h4v5h-4zM55 38h5v5h-5z" fill="#332b25"/>
+    <path d="M39 27h5v8h-5zM52 22h4v8h-4z" fill="#2b6634"/>
+  </g>
+</svg>

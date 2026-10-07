@@ -3,6 +3,8 @@ const bytes = n => n == null ? '—' : (n / 1073741824).toLocaleString('pt-BR', 
 const duration = n => { n = Math.max(0, Math.floor(n || 0)); const d = Math.floor(n / 86400), h = Math.floor(n % 86400 / 3600), m = Math.floor(n % 3600 / 60); return (d ? d + 'd ' : '') + h + 'h ' + m + 'm'; };
 const labels = { online: 'Online', stopped: 'Parado', offline: 'Offline', unknown: 'Sem leitura', unmanaged: 'Sem PM2', errored: 'Erro', launching: 'Iniciando', possible: 'Possível' };
 function el(tag, text, cls) { const node = document.createElement(tag); node.textContent = text; if (cls) node.className = cls; return node; }
+let latestStatus = null;
+let latestHealth = null;
 function render(data) {
   $('connection').className = 'banner' + (data.stale ? ' warn' : '');
   $('connection').textContent = data.stale ? 'Dados desatualizados · verificando coletores' : '● Central conectada · última leitura às ' + new Date(data.timestamp).toLocaleTimeString('pt-BR');
@@ -38,8 +40,13 @@ async function update() {
   try {
     const response = await fetch('/api/status', { cache: 'no-store', signal: AbortSignal.timeout(7000) });
     if (!response.ok) throw new Error(response.status === 503 ? 'Coleta inicial em andamento' : 'Falha ao consultar a central');
-    render(await response.json());
+    const data = await response.json();
+    latestStatus = data;
+    render(data);
+    renderInsights();
   } catch (error) {
+    latestStatus = null;
+    renderInsights();
     $('connection').className = 'banner warn';
     $('connection').textContent = (error.message === 'Coleta inicial em andamento' ? error.message : 'Central sem resposta · dados anteriores podem estar desatualizados') + '. Nova tentativa automática.';
   } finally { busy = false; }
@@ -84,6 +91,8 @@ async function health() {
       card.append(strip);
       return card;
     }));
+    latestHealth = data;
+    renderInsights();
     renderMinecraft(data.services.minecraft, data.stale);
     $('health-recovery').textContent = (data.recovery.enabled ? 'Recuperação bom-dia habilitada' : 'Recuperação automática desativada') +
       ' · ' + data.recovery.attempts + '/3 tentativas usadas · cooldown de 10 min.' +
@@ -93,6 +102,8 @@ async function health() {
   } catch {
     $('health-summary').textContent = 'Monitor indisponível · dados anteriores podem estar desatualizados';
     $('health-list').replaceChildren(el('p', 'Aguardando nova leitura do watchdog.', 'empty'));
+    latestHealth = null;
+    renderInsights();
     renderMinecraft(null, true);
   }
 }
@@ -121,4 +132,23 @@ function renderMinecraft(minecraft, stale) {
   $('minecraft-process').textContent = minecraft.process ?
     'Processo Java candidato: ' + minecraft.process.jar + ' · PID ' + minecraft.process.pid + '. O vínculo com a porta não foi verificado.' :
     'Processo Java não identificado; o estado da porta é medido separadamente.';
+}
+
+function renderInsights() {
+  const { issues, complete, anyFresh } = getInsights(latestStatus, latestHealth);
+  $('alerts-summary').textContent = issues.length ? issues.length + (issues.length === 1 ? ' sinal de atenção' : ' sinais de atenção') :
+    complete ? 'Tudo em ordem nas leituras recentes' : anyFresh ? 'Leituras parciais' : 'Aguardando leituras';
+  if (!issues.length) {
+    $('alerts-list').replaceChildren(el('p', complete ? 'Nenhum alerta nas leituras recentes.' :
+      'Aguardando dados recentes do dispositivo e do watchdog.', 'empty'));
+    return;
+  }
+  $('alerts-list').replaceChildren(...issues.map(issue => {
+    const row = el('a', '', 'alert-row ' + issue.level);
+    row.href = issue.href;
+    const copy = el('span', '');
+    copy.append(el('strong', issue.title), el('small', issue.detail));
+    row.append(el('span', issue.level === 'critical' ? '!' : '●', 'alert-mark'), copy, el('span', '↗', 'alert-arrow'));
+    return row;
+  }));
 }
