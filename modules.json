@@ -1,0 +1,7 @@
+[
+  { "id": "monitoring", "name": "Monitoramento", "state": "active", "description": "Serviços, memória, armazenamento e rede" },
+  { "id": "bom-dia", "name": "Bom Dia", "state": "existing", "description": "Projeto existente; integração funcional pendente" },
+  { "id": "minecraft", "name": "Minecraft", "state": "planned", "description": "Arquivos existentes; ativação e monitoramento pendentes" },
+  { "id": "backups", "name": "Backups", "state": "planned", "description": "Próxima etapa: rotina e retenção de cópias" },
+  { "id": "alerts", "name": "Alertas", "state": "planned", "description": "Próxima etapa: regras e canal de notificação" }
+]
