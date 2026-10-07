@@ -218,6 +218,21 @@ GET /api/status
 GET /api/modules
 ```
 
+## Observação sobre Termux:API
+
+A leitura da bateria usa `termux-battery-status`. Em alguns dispositivos Android, principalmente quando o Termux:API precisa ser acordado em segundo plano, a resposta pode levar alguns segundos.
+
+O coletor utiliza um timeout específico de **10 segundos** para essa consulta. Isso evita encerrar o processo cliente cedo demais e reduz ocorrências de mensagens do `ResultReturner` como `java.io.IOException: Connection refused`, que podem acontecer quando o app Termux:API tenta devolver o resultado depois que o socket local do chamador já foi encerrado.
+
+Caso a API não responda dentro desse prazo, o dashboard continua funcionando normalmente e informa temporariamente que a leitura da bateria está indisponível. Uma nova coleta é feita no ciclo seguinte.
+
+Para testar a API diretamente:
+
+```bash
+termux-battery-status
+termux-toast "teste da API"
+```
+
 ## Objetivo do projeto
 
 O objetivo é evoluir esse dispositivo para uma central pessoal de infraestrutura e automação, capaz de hospedar serviços leves e integrar diferentes projetos em um único ambiente.
