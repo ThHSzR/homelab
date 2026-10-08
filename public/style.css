@@ -610,3 +610,24 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 .alert-mark { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border-radius: 9px; background: rgba(242,183,102,.12); color: var(--orange); font-weight: 850; }
 .alert-row.critical .alert-mark { background: rgba(255,108,108,.16); color: #ff9292; }
 .alert-arrow { margin-left: auto; color: var(--muted-soft); }
+
+.debug-card {
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.025);
+}
+.debug-card p { margin-top: 0; font-size: .75rem; }
+#debug-log {
+  margin: 14px 0 0;
+  padding: 14px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #cbd5e1;
+  background: rgba(0,0,0,.28);
+  font: .68rem/1.6 Consolas, ui-monospace, monospace;
+}
