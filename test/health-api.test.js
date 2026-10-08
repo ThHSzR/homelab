@@ -10,17 +10,40 @@ test('health API returns 503 until first sample, then reports fresh and stale st
   const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: '0', HOST: '127.0.0.1', WATCHDOG_STATE_DIR: dir }, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(async () => {
-    const exited = new Promise(resolve => child.once('exit', resolve));
-    child.kill(); await exited;
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise(resolve => child.once('exit', resolve));
+      child.kill();
+      await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5000))]);
+    }
     await fs.rm(dir, { recursive: true, force: true });
   });
   const port = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Startup timeout')), 10000);
+    let output = '';
+    let errors = '';
+    let finished = false;
+    const finish = (error, value) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const timer = setTimeout(() => {
+      finish(new Error('Startup timeout (30 s). stdout=' + output.slice(-1000) +
+        '; stderr=' + errors.slice(-1000)));
+    }, 30000);
     child.stdout.on('data', chunk => {
-      const match = chunk.toString().match(/porta (\d+)/);
-      if (match) { clearTimeout(timer); resolve(Number(match[1])); }
+      output += chunk.toString();
+      const match = output.match(/porta (\d+)/);
+      if (match) finish(null, Number(match[1]));
+      if (output.length > 4096) output = output.slice(-2048);
     });
-    child.once('error', reject);
+    child.stderr.on('data', chunk => { errors = (errors + chunk.toString()).slice(-2048); });
+    child.once('error', error => finish(error));
+    child.once('exit', (code, signal) => {
+      finish(new Error('Servidor de teste encerrou antes do startup: code=' + code +
+        ' signal=' + signal + '; stderr=' + errors.slice(-1000)));
+    });
   });
   const url = `http://127.0.0.1:${port}/api/health`;
   assert.equal((await fetch(url)).status, 503);
