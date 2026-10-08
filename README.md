@@ -322,13 +322,13 @@ O ícone de bloco de grama na seção Minecraft é a imagem fornecida pelo usuá
 
 ## SSH no navegador via Cloudflare Access
 
-O dashboard inclui o link **SSH Web**, para `https://ssh.thsouza.eng.br`. A URL **só funcionará depois** de configurar uma aplicação Access e um hostname publicado no Cloudflare Tunnel existente. O frontend não executa comandos remotos nem fornece autenticação SSH própria.
+O dashboard inclui o link **SSH Web**, para `https://homelabssh.thsouza.eng.br`. O terminal foi configurado com Cloudflare Access e uma rota SSH publicada no Cloudflare Tunnel existente. O frontend não executa comandos remotos nem fornece autenticação SSH própria.
 
-1. No Zero Trust / **Networking > Tunnels**, editar o túnel já existente, adicionar uma rota de aplicação publicada para `ssh.thsouza.eng.br` com serviço **SSH** em `localhost:8022`. Não abrir a porta 8022 no roteador.
-2. Em **Access controls > Applications**, criar uma aplicação self-hosted com hostname público `ssh.thsouza.eng.br`, com política **Allow** limitada à identidade de administração e MFA/passkey; **não** criar regra Bypass nem Service Auth.
+1. No Zero Trust / **Networking > Tunnels**, editar o túnel já existente, adicionar uma rota de aplicação publicada para `homelabssh.thsouza.eng.br` com serviço **SSH** em `localhost:8022`. Não abrir a porta 8022 no roteador.
+2. Em **Access controls > Applications**, criar uma aplicação self-hosted com hostname público `homelabssh.thsouza.eng.br`, com política **Allow** limitada à identidade de administração e MFA/passkey; **não** criar regra Bypass nem Service Auth.
 3. Na aplicação Access, ativar **Allow access through browser-based RDP, SSH, or VNC sessions** e selecionar **SSH**.
 4. Validar no Termux com `ss -lnt | grep 8022` e `whoami`; o SSH do Android/Termux roda na porta `8022`, não `22`.
-5. Visitar `https://ssh.thsouza.eng.br` e conferir o login. A documentação Cloudflare observa que, para SSH browser-rendered, o prefixo do e-mail da identidade Access precisa corresponder ao nome de usuário SSH no host. O usuário gerado pelo Android/Termux (por exemplo, `u0_a123`) pode ser diferente, então verificar esse requisito e o método de autenticação SSH antes de considerar a implantação concluída.
+5. Visitar `https://homelabssh.thsouza.eng.br` e conferir o login. No Termux, o usuário SSH é gerado pelo Android (neste aparelho, `u0_a267`); preservar o método de autenticação SSH já testado no navegador.
 
 **Segurança:** não habilitar senha SSH globalmente ou substituir a autenticação por chave existente sem avaliar o impacto; manter Tailscale + SSH atual como acesso administrativo de recuperação. A autenticação pelo Access não significa, por si só, que o servidor SSH aceite a identidade apresentada.
 
