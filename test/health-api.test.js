@@ -13,7 +13,9 @@ test('health API returns 503 until first sample, then reports fresh and stale st
     if (child.exitCode === null && child.signalCode === null) {
       const exited = new Promise(resolve => child.once('exit', resolve));
       child.kill();
-      await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5000))]);
+      let timer;
+      await Promise.race([exited, new Promise(resolve => { timer = setTimeout(resolve, 5000); })]);
+      clearTimeout(timer);
     }
     await fs.rm(dir, { recursive: true, force: true });
   });
