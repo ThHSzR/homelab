@@ -5,6 +5,106 @@ const labels = { online: 'Online', stopped: 'Parado', offline: 'Offline', unknow
 function el(tag, text, cls) { const node = document.createElement(tag); node.textContent = text; if (cls) node.className = cls; return node; }
 let latestStatus = null;
 let latestHealth = null;
+
+const diagnosticKey = 'homelab.connection.debug.v1';
+let diagnosticHistory = [];
+try { diagnosticHistory = JSON.parse(sessionStorage.getItem(diagnosticKey) || '[]'); }
+catch { diagnosticHistory = []; }
+
+function safeResponseUrl(value) {
+  if (!value) return '—';
+  try {
+    const url = new URL(value, location.href);
+    return url.origin === location.origin ? url.pathname : url.origin + url.pathname;
+  } catch { return '—'; }
+}
+
+function renderDiagnostics() {
+  const log = $('debug-log');
+  const summary = $('debug-summary');
+  if (!log || !summary) return;
+  const last = diagnosticHistory.at(-1);
+  summary.textContent = last
+    ? last.kind + ' · ' + last.result + ' · ' + last.elapsedMs + ' ms'
+    : 'Aguardando primeira requisição';
+
+  const lines = diagnosticHistory.slice(-16).reverse().map(item => {
+    const parts = [
+      item.time,
+      item.kind.toUpperCase(),
+      item.result,
+      item.status ? 'HTTP ' + item.status : null,
+      item.origin ? 'origin=' + item.origin : null,
+      item.type ? 'type=' + item.type : null,
+      item.url ? 'url=' + item.url : null,
+      item.cfRay ? 'cf-ray=' + item.cfRay : null,
+      item.error ? 'error=' + item.error : null,
+      item.online == null ? null : 'online=' + item.online,
+      item.visibility ? 'visibility=' + item.visibility : null
+    ].filter(Boolean);
+    return parts.join(' · ');
+  });
+  log.textContent = lines.join('\n');
+}
+
+function recordDiagnostic(kind, fields) {
+  const item = {
+    time: new Date().toLocaleTimeString('pt-BR'),
+    kind,
+    online: navigator.onLine,
+    visibility: document.visibilityState,
+    ...fields
+  };
+  diagnosticHistory.push(item);
+  diagnosticHistory = diagnosticHistory.slice(-40);
+  try { sessionStorage.setItem(diagnosticKey, JSON.stringify(diagnosticHistory)); } catch {}
+  renderDiagnostics();
+}
+
+async function diagnosticFetch(path, kind) {
+  const started = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort('timeout'), 10000);
+  try {
+    const separator = path.includes('?') ? '&' : '?';
+    const response = await fetch(path + separator + '_=' + Date.now(), {
+      cache: 'no-store',
+      credentials: 'include',
+      redirect: 'manual',
+      signal: controller.signal
+    });
+    const elapsedMs = Math.round(performance.now() - started);
+    const opaqueRedirect = response.type === 'opaqueredirect' || response.status === 0;
+    recordDiagnostic(kind, {
+      result: opaqueRedirect ? 'REDIRECT/ACCESS' : response.ok ? 'OK' : 'HTTP_ERROR',
+      status: response.status || null,
+      elapsedMs,
+      origin: response.headers.get('x-homelab-origin') || null,
+      requestId: response.headers.get('x-homelab-request-id') || null,
+      cfRay: response.headers.get('cf-ray') || null,
+      type: response.type,
+      url: safeResponseUrl(response.url),
+      contentType: response.headers.get('content-type') || null
+    });
+    if (opaqueRedirect) {
+      const error = new Error('Redirecionamento interceptado antes da API');
+      error.code = 'ACCESS_REDIRECT';
+      throw error;
+    }
+    return response;
+  } catch (error) {
+    if (error.code !== 'ACCESS_REDIRECT') {
+      recordDiagnostic(kind, {
+        result: controller.signal.aborted ? 'TIMEOUT' : 'FETCH_ERROR',
+        elapsedMs: Math.round(performance.now() - started),
+        error: error?.name + ': ' + (error?.message || String(error))
+      });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function render(data) {
   $('connection').className = 'banner' + (data.stale ? ' warn' : '');
   $('connection').textContent = data.stale ? 'Dados desatualizados · verificando coletores' : '● Central conectada · última leitura às ' + new Date(data.timestamp).toLocaleTimeString('pt-BR');
@@ -38,22 +138,26 @@ async function update() {
   if (busy) return;
   busy = true;
   try {
-    const response = await fetch('/api/status', { cache: 'no-store', signal: AbortSignal.timeout(7000) });
+    const response = await diagnosticFetch('/api/status', 'status');
     if (!response.ok) throw new Error(response.status === 503 ? 'Coleta inicial em andamento' : 'Falha ao consultar a central');
     const data = await response.json();
     latestStatus = data;
     render(data);
     renderInsights();
   } catch (error) {
-    latestStatus = null;
     renderInsights();
     $('connection').className = 'banner warn';
-    $('connection').textContent = (error.message === 'Coleta inicial em andamento' ? error.message : 'Central sem resposta · dados anteriores podem estar desatualizados') + '. Nova tentativa automática.';
+    const reason = error.code === 'ACCESS_REDIRECT'
+      ? 'Cloudflare redirecionou a atualização antes de chegar à API'
+      : error.message === 'Coleta inicial em andamento'
+        ? error.message
+        : 'Central sem resposta · ' + (error.name || 'erro de rede');
+    $('connection').textContent = reason + '. Mantendo a última leitura válida e tentando novamente.';
   } finally { busy = false; }
 }
 async function modules() {
   try {
-    const response = await fetch('/api/modules', { signal: AbortSignal.timeout(7000) });
+    const response = await diagnosticFetch('/api/modules', 'modules');
     if (!response.ok) throw new Error();
     const data = await response.json();
     $('module-list').replaceChildren(...data.map(m => {
@@ -65,11 +169,19 @@ async function modules() {
 }
 $('refresh').addEventListener('click', () => { update(); modules(); });
 update(); modules(); setInterval(update, 15000);
+renderDiagnostics();
+window.addEventListener('online', () => { recordDiagnostic('browser', { result: 'ONLINE', elapsedMs: 0 }); update(); health(); });
+window.addEventListener('offline', () => recordDiagnostic('browser', { result: 'OFFLINE', elapsedMs: 0 }));
+window.addEventListener('focus', () => { recordDiagnostic('browser', { result: 'FOCUS', elapsedMs: 0 }); update(); health(); });
+document.addEventListener('visibilitychange', () => {
+  recordDiagnostic('browser', { result: document.visibilityState.toUpperCase(), elapsedMs: 0 });
+  if (document.visibilityState === 'visible') { update(); health(); }
+});
 
 const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa', minecraft: 'Minecraft · Java' };
 async function health() {
   try {
-    const response = await fetch('/api/health', { cache: 'no-store', signal: AbortSignal.timeout(7000) });
+    const response = await diagnosticFetch('/api/health', 'health');
     if (!response.ok) throw new Error();
     const data = await response.json();
     $('health-summary').textContent = data.stale ? 'Monitor sem leitura recente' : 'Última leitura: ' + new Date(data.timestamp).toLocaleTimeString('pt-BR');
