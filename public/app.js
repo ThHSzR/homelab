@@ -125,13 +125,6 @@ function render(data) {
   const boot = data.persistence.lastRun;
   $('boot-state').textContent = data.persistence.bootScriptRanThisBoot ? 'Script executado neste boot' : 'Teste de reboot pendente';
   $('boot-detail').textContent = boot ? 'Última execução: ' + new Date(boot.timestamp).toLocaleString('pt-BR') + (boot.source === 'manual-test' ? ' · teste manual' : '') : 'Aguardando primeira execução do script';
-  $('service-count').textContent = data.services.filter(s => s.state === 'online').length + ' de ' + data.services.length + ' ativos';
-  $('service-list').replaceChildren(...data.services.map(s => {
-    const row = el('div', '', 'service');
-    const title = el('div', ''); title.append(el('strong', s.name), el('small', s.description));
-    row.append(el('span', s.id === 'sshd' ? '⌘' : '▦', 'icon'), title, el('span', s.port ? ':' + s.port : '—', 'meta port'), el('span', s.manager, 'meta manager'), el('span', labels[s.state] || s.state, 'status ' + s.state));
-    return row;
-  }));
 }
 let busy = false;
 async function update() {
@@ -178,7 +171,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { update(); health(); }
 });
 
-const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa', minecraft: 'Minecraft · Java' };
+const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa', minecraft: 'Minecraft · Java', tailscale: 'Tailscale · Android' };
 async function health() {
   try {
     const response = await diagnosticFetch('/api/health', 'health');
@@ -189,6 +182,7 @@ async function health() {
       const card = el('article', '', 'panel');
       card.append(el('strong', healthNames[id] || id), el('p', data.stale ? 'Dados desatualizados' : labels[s.status] || s.status, 'status ' + (data.stale ? 'unknown' : s.status)),
         el('p', s.latencyMs + ' ms · duração da verificação'),
+        ...(id === 'tailscale' ? [el('p', data.stale ? 'Leitura desatualizada · estado da VPN não confirmado' : (s.detail || 'Sem detalhes da VPN'), 'service-detail')] : []),
         el('small', 'Última mudança: ' + new Date(s.changedAt).toLocaleString('pt-BR')),
         el('small', 'Visto online: ' + (s.lastSeen ? new Date(s.lastSeen).toLocaleString('pt-BR') : 'Ainda não')));
       const recent = data.history.slice(-20);
