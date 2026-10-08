@@ -335,3 +335,11 @@ O dashboard inclui o link **SSH Web**, para `https://homelabssh.thsouza.eng.br`.
 Documentação oficial:
 - https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-browser-rendering/
 - https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/browser-rendering/
+
+## Terminal SSH flutuante no dashboard
+
+A interface possui um launcher **SSH** no canto inferior direito. O painel pode ser arrastado pelo cabeçalho e redimensionado pelo canto inferior direito; os controles permitem minimizar, maximizar e abrir em uma janela/aba separada. O tamanho e a posição ficam salvos apenas em `sessionStorage` no navegador, sem persistir senhas, tokens ou comandos.
+
+O widget tenta incorporar `https://homelabssh.thsouza.eng.br/` em um `iframe`. **Importante:** o browser-rendered SSH da Cloudflare não é documentado como incorporável. Se a política `frame-ancestors`, `X-Frame-Options` ou restrições de cookies de terceiros bloquear a interface, o iframe pode ficar branco. Nesse caso use **Abrir em nova aba** ou **Abrir em janela separada**; não há um contorno seguro pelo frontend. O header CSP do dashboard permite esse hostname explicitamente em `frame-src`, sem mudar `frame-ancestors 'none'`.
+
+A autenticação e a sessão SSH permanecem gerenciadas pelo Cloudflare Access no subdomínio SSH. Nenhum novo endpoint de shell/exec foi criado e a configuração de SSH do Termux não foi modificada.
