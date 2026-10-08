@@ -29,7 +29,7 @@ app.use((req, res, next) => {
   }
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'no-referrer');
-  res.set('Content-Security-Policy', "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+  res.set('Content-Security-Policy', "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-src https://homelabssh.thsouza.eng.br; frame-ancestors 'none'");
   next();
 });
 app.get('/healthz', (req, res) => res.json({ status: 'ok', uptimeSeconds: process.uptime() }));
