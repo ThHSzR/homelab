@@ -373,39 +373,6 @@ button:focus-visible::after { transform: translateX(120%); }
 }
 .section-title span { color: var(--muted-soft); font-size: .72rem; }
 
-.service-list {
-  overflow: hidden;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: rgba(255,255,255,.02);
-  box-shadow: 0 18px 46px rgba(0,0,0,.16);
-}
-.service {
-  display: grid;
-  grid-template-columns: 42px minmax(160px,1fr) 80px 100px 88px;
-  gap: 15px;
-  align-items: center;
-  padding: 19px 21px;
-  background: rgba(255,255,255,.018);
-  transition: background .2s ease;
-}
-.service:hover { background: rgba(0,124,255,.04); }
-.service + .service { border-top: 1px solid var(--line); }
-.service .icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(0,124,255,.20);
-  border-radius: 10px;
-  color: var(--blue);
-  background: rgba(0,124,255,.065);
-}
-.service strong { display: block; margin-bottom: 4px; font-size: .86rem; }
-.service small,
-.service .meta { font-size: .71rem; }
-.service .meta { color: var(--muted-soft); }
-
 .status {
   width: max-content;
   padding: 6px 10px;
@@ -510,8 +477,6 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 @media (max-width: 1120px) {
   :root { --sidebar: 205px; }
   .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .service { grid-template-columns: 34px minmax(140px,1fr) 65px 82px; }
-  .service .manager { display: none; }
 }
 
 @media (max-width: 760px) {
@@ -552,8 +517,6 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
   .metric strong { font-size: 1.55rem; }
   .details { grid-template-columns: 1fr; }
   .modules { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .service { grid-template-columns: 30px minmax(110px,1fr) 72px; gap: 9px; padding: 15px 13px; }
-  .service .port { display: none; }
   .section-title { align-items: center; }
 }
 
@@ -631,3 +594,5 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
   background: rgba(0,0,0,.28);
   font: .68rem/1.6 Consolas, ui-monospace, monospace;
 }
+
+.service-detail { color: #bfdbfe; overflow-wrap: anywhere; }
