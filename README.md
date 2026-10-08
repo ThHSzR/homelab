@@ -319,3 +319,19 @@ Para usar uma porta diferente, altere `MINECRAFT_PORT` no `env` do `homelab-watc
 A seção **Atenção agora** combina as leituras já existentes do dispositivo e do watchdog, sem instalar dependências ou executar ações. Ela destaca bateria em 20% ou menos enquanto descarrega, temperatura da bateria a partir de 42 °C, armazenamento a partir de 85% e um processo Java candidato ao Minecraft usando pelo menos 35% da RAM do aparelho. Os avisos levam à seção correspondente. Se uma fonte estiver indisponível ou desatualizada, o painel indica leituras parciais e evita declarar que está tudo bem. Os limites são indicadores operacionais, não diagnósticos do hardware.
 
 O ícone de bloco de grama na seção Minecraft é a imagem fornecida pelo usuário, salva localmente no projeto; o painel continua funcionando sem recursos externos de imagem. Os testes da lógica de alertas verificam limites, ausência de alertas por serviços offline e dados desatualizados.
+
+## SSH no navegador via Cloudflare Access
+
+O dashboard inclui o link **SSH Web**, para `https://ssh.thsouza.eng.br`. A URL **só funcionará depois** de configurar uma aplicação Access e um hostname publicado no Cloudflare Tunnel existente. O frontend não executa comandos remotos nem fornece autenticação SSH própria.
+
+1. No Zero Trust / **Networking > Tunnels**, editar o túnel já existente, adicionar uma rota de aplicação publicada para `ssh.thsouza.eng.br` com serviço **SSH** em `localhost:8022`. Não abrir a porta 8022 no roteador.
+2. Em **Access controls > Applications**, criar uma aplicação self-hosted com hostname público `ssh.thsouza.eng.br`, com política **Allow** limitada à identidade de administração e MFA/passkey; **não** criar regra Bypass nem Service Auth.
+3. Na aplicação Access, ativar **Allow access through browser-based RDP, SSH, or VNC sessions** e selecionar **SSH**.
+4. Validar no Termux com `ss -lnt | grep 8022` e `whoami`; o SSH do Android/Termux roda na porta `8022`, não `22`.
+5. Visitar `https://ssh.thsouza.eng.br` e conferir o login. A documentação Cloudflare observa que, para SSH browser-rendered, o prefixo do e-mail da identidade Access precisa corresponder ao nome de usuário SSH no host. O usuário gerado pelo Android/Termux (por exemplo, `u0_a123`) pode ser diferente, então verificar esse requisito e o método de autenticação SSH antes de considerar a implantação concluída.
+
+**Segurança:** não habilitar senha SSH globalmente ou substituir a autenticação por chave existente sem avaliar o impacto; manter Tailscale + SSH atual como acesso administrativo de recuperação. A autenticação pelo Access não significa, por si só, que o servidor SSH aceite a identidade apresentada.
+
+Documentação oficial:
+- https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-browser-rendering/
+- https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/browser-rendering/
