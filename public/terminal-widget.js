@@ -141,8 +141,9 @@ function setupTerminalWidget() {
     });
   });
   popup.addEventListener('click', () => {
-    const win = window.open(HOMELAB_SSH_URL, 'homelab-ssh-popup', 'popup=yes,width=1000,height=650,resizable=yes,scrollbars=yes');
-    if (!win) window.open(HOMELAB_SSH_URL, '_blank', 'noopener,noreferrer');
+    // The dedicated window must not retain a window.opener reference to the dashboard.
+    // Some browsers return null with noopener even if opening succeeds.
+    window.open(HOMELAB_SSH_URL, '_blank', 'noopener,noreferrer,popup=yes,width=1000,height=650,resizable=yes,scrollbars=yes');
   });
   window.addEventListener('resize', () => {
     if (maximized) {
