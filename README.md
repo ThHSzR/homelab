@@ -336,10 +336,12 @@ Documentação oficial:
 - https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-browser-rendering/
 - https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/browser-rendering/
 
-## Terminal SSH flutuante no dashboard
+## Terminal SSH em janela independente
 
-A interface possui um launcher **SSH** no canto inferior direito. O painel pode ser arrastado pelo cabeçalho e redimensionado pelo canto inferior direito; os controles permitem minimizar, maximizar e abrir em uma janela/aba separada. O tamanho e a posição ficam salvos apenas em `sessionStorage` no navegador, sem persistir senhas, tokens ou comandos.
+O botão **SSH ↗**, fixado no canto inferior direito do dashboard, abre `https://homelabssh.thsouza.eng.br/` em uma **janela nativa redimensionável do navegador**, centralizada na área disponível da tela (até 980 × 680 pixels). É possível ajustar o tamanho pelos controles da janela. Alguns navegadores, especialmente em dispositivos móveis, podem abrir uma aba em vez de janela pop-up; esse comportamento depende das preferências do navegador.
 
-O widget tenta incorporar `https://homelabssh.thsouza.eng.br/` em um `iframe`. **Importante:** o browser-rendered SSH da Cloudflare não é documentado como incorporável. Se a política `frame-ancestors`, `X-Frame-Options` ou restrições de cookies de terceiros bloquear a interface, o iframe pode ficar branco. Nesse caso use **Abrir em nova aba** ou **Abrir em janela separada**; não há um contorno seguro pelo frontend. O header CSP do dashboard permite esse hostname explicitamente em `frame-src`, sem mudar `frame-ancestors 'none'`.
+O clique aciona `window.open` diretamente para respeitar as restrições de pop-ups. O link de HTML continua funcionando em nova aba quando JavaScript não está disponível ou ao usar Ctrl/Cmd+clique. Caso o navegador bloqueie pop-ups, use o link **SSH Web** no menu ou autorize pop-ups para o dashboard.
 
-A autenticação e a sessão SSH permanecem gerenciadas pelo Cloudflare Access no subdomínio SSH. Nenhum novo endpoint de shell/exec foi criado e a configuração de SSH do Termux não foi modificada.
+A incorporação anterior via `iframe` foi removida porque a interface SSH do Cloudflare Access não aceita ser renderizada no iframe do dashboard. A exceção `frame-src` no CSP também foi removida. Não há nova API de execução remota no Express.
+
+**Nenhuma nova rota é necessária:** permanece a rota Cloudflare Tunnel já existente, `homelabssh.thsouza.eng.br` → serviço SSH do Termux na porta `8022`. O Cloudflare Access continua responsável por exigir a autenticação e aplicar suas políticas.
