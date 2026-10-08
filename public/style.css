@@ -598,64 +598,32 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 .service-detail { color: #bfdbfe; overflow-wrap: anywhere; }
 
 
-/* SSH Web: floating, draggable, resizable panel */
+/* SSH Web: a single floating launcher, opening a native browser popup. */
 .terminal-widget { position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
 .terminal-launcher {
   position: fixed; right: 22px; bottom: 22px;
-  display: flex; align-items: center; gap: 10px; min-height: 54px;
-  padding: 0 18px; border-radius: 999px;
-  box-shadow: 0 10px 38px rgba(0, 80, 255, .35), 0 0 0 1px rgba(255,255,255,.2) inset;
-  pointer-events: auto; z-index: 2;
+  display: flex; align-items: center; gap: 10px;
+  min-height: 54px; padding: 0 18px;
+  border: 1px solid rgba(0,124,255,.5); border-radius: 999px;
+  color: #fff; background: linear-gradient(180deg, rgba(0,124,255,.95), #0254be);
+  box-shadow: 0 10px 38px rgba(0,80,255,.35), inset 0 0 0 1px rgba(255,255,255,.12);
+  pointer-events: auto; text-decoration: none; font-weight: 750;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.terminal-launcher:hover, .terminal-launcher:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 42px rgba(0,80,255,.45);
 }
 .terminal-launcher-glyph {
   display: grid; place-items: center; width: 26px; height: 26px;
-  border-radius: 8px; background: rgba(0,0,0,.2); font: 700 15px/1 ui-monospace, monospace;
+  border-radius: 8px; background: rgba(0,0,0,.2);
+  font: 700 15px/1 ui-monospace, monospace;
 }
 .terminal-launcher-caption { font-size: .83rem; letter-spacing: .02em; }
-.terminal-window {
-  position: fixed; display: flex; flex-direction: column; z-index: 1;
-  min-width: 0; min-height: 0; overflow: hidden;
-  border: 1px solid rgba(0,124,255,.48); border-radius: 14px;
-  background: #080c14; color: #f1f5f9;
-  box-shadow: 0 24px 85px rgba(0,0,0,.75), 0 0 35px rgba(0,124,255,.10);
-  pointer-events: auto;
-}
-.terminal-window[hidden] { display: none !important; }
-.terminal-titlebar {
-  min-height: 49px; display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; background: #101a2b; border-bottom: 1px solid rgba(255,255,255,.12);
-  touch-action: none; cursor: move; user-select: none; -webkit-user-select: none;
-}
-.terminal-titlebar-label { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
-.terminal-status-dot { width: 8px; height: 8px; background: #58dc92; border-radius: 50%; flex: 0 0 auto; }
-.terminal-titlebar-label strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; }
-.terminal-titlebar-label small { font-size: .65rem; white-space: nowrap; color: #94a3b8; }
-.terminal-titlebar-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
-.terminal-window .terminal-titlebar-actions button {
-  min-width: 33px; min-height: 29px; padding: 0 7px;
-  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
-  border-radius: 7px; box-shadow: none; font-size: 1rem;
-}
-.terminal-window .terminal-titlebar-actions button::after { display: none; }
-.terminal-window .terminal-titlebar-actions button:hover { background: rgba(255,255,255,.16); transform: none; }
-.terminal-window .terminal-titlebar-actions #terminal-close:hover { background: #a9233a; }
-.terminal-frame-container { position: relative; flex: 1; min-height: 0; background: #05090e; }
-.terminal-frame-container iframe { width: 100%; height: 100%; display: block; border: 0; background: #05090e; }
-.terminal-footer {
-  margin: 0; padding: 7px 24px 8px 12px; border-top: 1px solid rgba(255,255,255,.12);
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  background: #101a2b; color: #94a3b8; font-size: .66rem; line-height: 1.3;
-}
-.terminal-footer a { color: #93c5fd; white-space: nowrap; text-decoration: underline; }
-.terminal-footer p { padding: 0; margin: 0; font-size: inherit; }
-.terminal-resize {
-  position: absolute; right: 0; bottom: 0; z-index: 3; width: 22px; height: 22px;
-  background: linear-gradient(135deg, transparent 48%, rgba(147,197,253,.4) 49%, rgba(147,197,253,.4) 52%, transparent 53%);
-  cursor: nwse-resize; touch-action: none;
-}
-.terminal-resize:focus-visible { outline-offset: -3px; }
+.terminal-launcher-arrow { font-size: 1rem; color: #cfe4ff; }
 @media (max-width: 600px) {
   .terminal-launcher { right: 12px; bottom: 12px; min-height: 48px; }
-  .terminal-titlebar-label small { display: none; }
-  .terminal-footer p { max-width: 62%; }
+}
+@media (hover: none) {
+  .terminal-launcher:hover { transform: none; }
 }
