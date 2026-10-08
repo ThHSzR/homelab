@@ -14,7 +14,19 @@ async function refresh() {
   catch (error) { console.error('Falha na coleta:', error.message); }
   finally { collecting = false; }
 }
+let requestSequence = 0;
 app.use((req, res, next) => {
+  const requestId = String(++requestSequence);
+  const startedAt = Date.now();
+  res.set('X-Homelab-Origin', 'express');
+  res.set('X-Homelab-Request-Id', requestId);
+  res.set('X-Homelab-Server-Time', new Date().toISOString());
+  if (req.path.startsWith('/api/')) {
+    res.on('finish', () => {
+      const cfRay = req.get('cf-ray') || '-';
+      console.log('[http]', requestId, req.method, req.path, res.statusCode, (Date.now() - startedAt) + 'ms', 'cf-ray=' + cfRay);
+    });
+  }
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'no-referrer');
   res.set('Content-Security-Policy', "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'");
