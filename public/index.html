@@ -7,22 +7,12 @@
 <section id="alerts"><div class="section-title"><h2>Atenção agora</h2><span id="alerts-summary" role="status">Aguardando leituras</span></div><div id="alerts-list" class="alerts-list"><p class="empty">Verificando o dispositivo e os serviços…</p></div></section>
 <section id="services"><div class="section-title"><h2>Serviços</h2><span id="health-summary" role="status">Aguardando monitor</span></div><div id="health-list" class="health-grid"></div><p id="health-recovery">Recuperação automática desativada por padrão.</p></section><section id="minecraft"><div class="section-title"><div class="minecraft-heading"><img src="/grass-block.png" alt="Bloco de grama do Minecraft" width="64" height="64"><h2>Minecraft</h2></div><span id="minecraft-updated">Aguardando monitor</span></div><div class="minecraft-card"><div><div class="eyebrow">SERVIDOR LOCAL</div><h3 id="minecraft-state">Verificando…</h3><p id="minecraft-detail">Porta padrão 25565</p></div><div class="minecraft-metrics"><div><small>MEMÓRIA DO PROCESSO</small><strong id="minecraft-memory">—</strong></div><div><small>CPU DO PROCESSO</small><strong id="minecraft-cpu">—</strong></div><div><small>JOGADORES</small><strong id="minecraft-players">—</strong></div></div><small id="minecraft-process">Aguardando processo Java</small></div></section><div class="details"><section class="panel"><div class="eyebrow">REDE PRIVADA</div><h2>Tailscale</h2><strong id="tail-ip" class="mono">—</strong><p id="tail-status">Verificando interface…</p><small>O estado da interface local não confirma acesso remoto. A conexão de outro dispositivo precisa ser testada.</small></section><section class="panel"><div class="eyebrow">CONTINUIDADE</div><h2>Inicialização automática</h2><strong id="boot-state">Aguardando leitura</strong><p id="boot-detail">—</p><small>PM2 mantém a central em execução; Termux:Boot restaura os serviços ao iniciar o Android.</small></section></div>
 <section id="debug"><div class="section-title"><h2>Diagnóstico de conexão</h2><span id="debug-summary" role="status">Aguardando primeira requisição</span></div><div class="debug-card"><p>Esta branch registra apenas metadados de transporte. Cookies, tokens e conteúdo de autenticação não são exibidos.</p><pre id="debug-log" aria-live="polite">Sem eventos ainda.</pre></div></section>
-<section id="modules"><div class="section-title"><h2>Espaço para crescer</h2><span>Módulos do HomeLab</span></div><div class="modules" id="module-list"></div></section><footer><span>TH HomeLab <b> / </b> Galaxy A30</span><span>Leituras a cada 15 segundos</span></footer></main></div><div class="terminal-widget" id="terminal-widget">
-  <button id="terminal-launcher" class="terminal-launcher" type="button" aria-label="Abrir terminal SSH" aria-controls="terminal-window" aria-expanded="false" title="Terminal SSH no navegador">
-    <span class="terminal-launcher-glyph" aria-hidden="true">&gt;_</span><span class="terminal-launcher-caption">SSH</span>
-  </button>
-  <div id="terminal-window" class="terminal-window" role="dialog" aria-label="Terminal SSH HomeLab" aria-modal="false" hidden>
-    <div class="terminal-titlebar" id="terminal-titlebar">
-      <div class="terminal-titlebar-label"><span class="terminal-status-dot" aria-hidden="true"></span><strong>Terminal SSH</strong><small>Cloudflare Access · Galaxy A30</small></div>
-      <div class="terminal-titlebar-actions">
-        <button id="terminal-popup" type="button" title="Abrir em janela separada" aria-label="Abrir terminal em janela separada">↗</button>
-        <button id="terminal-minimize" type="button" title="Minimizar" aria-label="Minimizar terminal">−</button>
-        <button id="terminal-maximize" type="button" title="Maximizar" aria-label="Maximizar terminal">□</button>
-        <button id="terminal-close" type="button" title="Fechar sessão incorporada" aria-label="Fechar terminal">×</button>
-      </div>
-    </div>
-    <div class="terminal-frame-container"><iframe id="terminal-frame" title="Terminal SSH protegido por Cloudflare Access" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write"></iframe></div>
-    <div class="terminal-footer"><p>Se ficar em branco, a Cloudflare pode bloquear o iframe.</p><a href="https://homelabssh.thsouza.eng.br/" target="_blank" rel="noopener noreferrer">Abrir em nova aba ↗</a></div>
-    <div id="terminal-resize" class="terminal-resize" role="separator" tabindex="0" aria-label="Redimensionar terminal com as setas" aria-orientation="vertical" title="Arraste para redimensionar"></div>
-  </div>
+<section id="modules"><div class="section-title"><h2>Espaço para crescer</h2><span>Módulos do HomeLab</span></div><div class="modules" id="module-list"></div></section><footer><span>TH HomeLab <b> / </b> Galaxy A30</span><span>Leituras a cada 15 segundos</span></footer></main></div><div class="terminal-widget">
+  <a id="terminal-launcher" class="terminal-launcher"
+     href="https://homelabssh.thsouza.eng.br/" target="_blank" rel="noopener noreferrer"
+     aria-label="Abrir SSH em janela separada" title="Abrir terminal SSH em uma janela do navegador">
+    <span class="terminal-launcher-glyph" aria-hidden="true">&gt;_</span>
+    <span class="terminal-launcher-caption">SSH</span>
+    <span class="terminal-launcher-arrow" aria-hidden="true">↗</span>
+  </a>
 </div></body></html>
