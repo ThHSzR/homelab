@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { createMonitor, readHealth, httpProbe, tcpProbe } = require('../lib/watchdog');
+const { createMonitor, readHealth, httpProbe, tcpProbe, parseTailscaleProbe } = require('../lib/watchdog');
 async function directory(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'homelab-test-'));
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
@@ -94,4 +94,42 @@ test('HTTP and TCP probes distinguish local availability and HTTP failures', asy
   assert.equal((await httpProbe(`http://127.0.0.1:${port}/healthz`)).status, 'online');
   assert.equal((await httpProbe(`http://127.0.0.1:${port}/fail`)).status, 'offline');
   assert.equal((await tcpProbe(port)).status, 'online');
+});
+
+test('Tailscale detects active Android VPN without treating command errors as offline', () => {
+  const entry = (ip, flags = ['UP']) => ({
+    ifname: 'tun0', flags, addr_info: [{ family: 'inet', local: ip }]
+  });
+  const result = interfaces => parseTailscaleProbe({ ok: true, text: JSON.stringify(interfaces) });
+  assert.equal(result([entry('100.66.241.113')]).status, 'online');
+  assert.equal(result([entry('100.66.241.113')]).ip, '100.66.241.113');
+  assert.equal(result([entry('100.66.241.113', [])]).status, 'offline');
+  assert.equal(result([entry('100.2.3.4')]).status, 'offline');
+  assert.equal(result([]).status, 'offline');
+  assert.equal(parseTailscaleProbe({ ok: false, text: '' }).status, 'unknown');
+  assert.equal(parseTailscaleProbe({ ok: true, text: 'not json' }).status, 'unknown');
+});
+
+test('Tailscale watchdog keeps status transitions, detail and prior online timestamp', async t => {
+  const dir = await directory(t);
+  let online = true;
+  let time = Date.now();
+  const monitor = createMonitor({
+    dir, now: () => time,
+    probes: { tailscale: async () => parseTailscaleProbe({
+      ok: true, text: JSON.stringify(online ? [{
+        ifname: 'tun0', flags: ['UP'],
+        addr_info: [{ family: 'inet', local: '100.66.241.113' }]
+      }] : [])
+    }) }
+  });
+  const first = await monitor.tick();
+  assert.equal(first.services.tailscale.status, 'online');
+  assert.match(first.services.tailscale.detail, /tun0/);
+  const firstSeen = first.services.tailscale.lastSeen;
+  time += 30000; online = false;
+  const second = await monitor.tick();
+  assert.equal(second.services.tailscale.status, 'offline');
+  assert.equal(second.services.tailscale.lastSeen, firstSeen);
+  assert.equal(second.history.length, 2);
 });
