@@ -627,3 +627,14 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 @media (hover: none) {
   .terminal-launcher:hover { transform: none; }
 }
+
+.service-control { margin-bottom: 16px; }
+.service-toggle { display: block; position: relative; width: 60px; height: 34px; margin: 16px 0; padding: 3px; border: 1px solid var(--line-strong); border-radius: 20px; background: #555; cursor: pointer; }
+.toggle-thumb { display: block; width: 26px; height: 26px; border-radius: 50%; background: #fff; transform: translateX(0); transition: transform .2s ease; }
+.service-toggle[aria-checked="true"] { background: #087c4b; }
+.service-toggle[aria-checked="true"] .toggle-thumb { transform: translateX(26px); }
+.service-toggle:disabled { opacity: .5; cursor: not-allowed; }
+.service-toggle:focus-visible { outline: 3px solid #69baff; outline-offset: 4px; }
+.service-toggle[aria-busy="true"] { opacity: .75; cursor: progress; }
+.control-error { color: #ff9d9d; }
+@media (prefers-reduced-motion: reduce) { .toggle-thumb { transition: none; } }

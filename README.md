@@ -345,3 +345,54 @@ O clique aciona `window.open` diretamente para respeitar as restrições de pop-
 A incorporação anterior via `iframe` foi removida porque a interface SSH do Cloudflare Access não aceita ser renderizada no iframe do dashboard. A exceção `frame-src` no CSP também foi removida. Não há nova API de execução remota no Express.
 
 **Nenhuma nova rota é necessária:** permanece a rota Cloudflare Tunnel já existente, `homelabssh.thsouza.eng.br` → serviço SSH do Termux na porta `8022`. O Cloudflare Access continua responsável por exigir a autenticação e aplicar suas políticas.
+
+
+## Interruptores em Serviços
+
+Há sliders apenas para **Bom Dia** e **Minecraft**. O círculo se desloca entre desligado e ligado conforme a leitura real, sem antecipar sucesso. Operações mostram Ligando/Desligando, bloqueiam novos cliques e exibem erros. O controle continua visível mesmo com o watchdog indisponível.
+
+### Gerenciadores confirmados e limites
+
+O código existente consulta Bom Dia em `$PREFIX/var/service/bom-dia` pelo **runit**. PM2 gerencia somente dashboard e watchdog; não há configuração PM2 de Bom Dia neste repositório. Antes de usar no aparelho, confirme com `sv status "$PREFIX/var/service/bom-dia"`. O backend recusa controle se não reconhecer a resposta do supervisor. Esta implementação não foi instalada nem testada no Android remoto.
+
+Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo, sem shell. Parar grava primeiro o arquivo runit `down`; iniciar remove esse arquivo. A intenção de parada persiste no reboot. A cada 15 segundos, o dashboard reconcilia um serviço ainda em execução com esse marcador, inclusive após falha entre persistência e comando. Iniciar depende da supervisão normal do runit; não há loop adicional de auto-start no dashboard. Online significa processo supervisionado em execução, não sucesso funcional da automação.
+
+Dashboard e recuperação do watchdog compartilham o diretório de lock `.homelab-control-lock` dentro do serviço. A recuperação confirma novamente a ausência de `down` dentro do lock. Após uma falha abrupta, o lock não é removido automaticamente: pare dashboard e watchdog, confirme que não existe operação em execução, inspecione o estado e só então remova o diretório vazio com `rmdir "$PREFIX/var/service/bom-dia/.homelab-control-lock"`. Rode somente uma instância do dashboard e mantenha ambos os processos na mesma versão.
+
+**Minecraft:** o repositório confirma apenas monitoramento do protocolo/porta e candidatos Java via /proc. Não identifica gerenciador, script de início ou parada segura, nem confirma Debian/proot. O slider acompanha o estado recente do watchdog, mas permanece desabilitado. POST é recusado. Para habilitá-lo, informe gerenciador, comando/script exato de início (incluindo diretório e eventual proot), comando de parada graciosa e como consultar o estado supervisionado. Não envie senhas; nenhum comando genérico de kill, Java ou proot foi inventado.
+
+### Configuração de segurança e atualização no Android
+
+1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. Use a aplicação do dashboard, não a aplicação SSH. O backend valida assinatura RS256, issuer, AUD, expiração, identidade e e-mail permitido; headers de e-mail sozinhos não autorizam nada. Referência: [validar JWT do Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+2. No Termux, atualize e instale as dependências (Node 22 ou superior, compatível com jose 6):
+
+```bash
+cd ~/services/homelab
+git pull --ff-only origin main
+npm ci
+npm test
+sv status "$PREFIX/var/service/bom-dia"
+```
+
+3. Configure no `env` de **homelab-status** em `ecosystem.config.cjs` os valores reais abaixo. São configurações locais; não publique dados pessoais no Git:
+
+```js
+CF_ACCESS_ISSUER: 'https://SEU-TIME.cloudflareaccess.com',
+CF_ACCESS_AUD: 'AUD-DA-APLICACAO-DO-DASHBOARD',
+CONTROL_ADMIN_EMAILS: 'SEU-EMAIL-AUTORIZADO',
+CONTROL_ORIGIN: 'https://HOSTNAME-DO-DASHBOARD'
+```
+
+Issuer deve estar sem barra final; origem deve ser exata e sem caminho/barra final. Vários e-mails podem ser separados por vírgula. Esses campos são obrigatórios: sem eles, o controle falha fechado (503) e os sliders ficam bloqueados. Não existe bypass de autenticação para acesso local. POST exige Origin exato, JSON e header específico; Fetch Metadata cross-site é recusado. Corpo aceita somente `{action: 'start' | 'stop'}`, limitado a 1 KB; não recebe caminhos, comandos ou senhas.
+
+4. Recarregue **dashboard e watchdog** e persista o PM2:
+
+```bash
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
+pm2 status
+```
+
+5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `sv status "$PREFIX/var/service/bom-dia"`, aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até confirmar seu gerenciamento.
+
+Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, assinatura JWT inválida, issuer/AUD/expiração, autorização por e-mail, configuração ausente, CSRF/origem e allowlist. A interface também foi conferida localmente com serviço simulado: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.

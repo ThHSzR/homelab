@@ -258,3 +258,61 @@ function renderInsights() {
     return row;
   }));
 }
+
+
+// These cards survive health refreshes, including watchdog outages.
+const controlCards = new Map();
+const controlLabels = { online: 'Ligado', offline: 'Desligado', starting: 'Ligando…', stopping: 'Desligando…', unknown: 'Estado desconhecido' };
+for (const [id, name] of [['bom-dia', 'Bom Dia'], ['minecraft', 'Minecraft']]) {
+  const card = el('article', '', 'panel service-control');
+  const button = el('button', '', 'service-toggle');
+  button.type = 'button'; button.setAttribute('role', 'switch');
+  button.setAttribute('aria-label', 'Ligar ou desligar ' + name);
+  button.setAttribute('aria-checked', 'false'); button.disabled = true;
+  button.append(el('span', '', 'toggle-thumb'));
+  const state = el('p', 'Consultando…'); state.setAttribute('role', 'status');
+  const error = el('p', '', 'control-error'); error.setAttribute('role', 'alert');
+  card.append(el('strong', name), button, state, error);
+  $('service-controls').append(card);
+  const entry = { button, state, error, busy: false, current: 'unknown' };
+  controlCards.set(id, entry);
+  button.addEventListener('click', async () => {
+    if (entry.busy || button.disabled) return;
+    entry.busy = true; button.disabled = true; button.setAttribute('aria-busy', 'true');
+    const action = entry.current === 'online' ? 'stop' : 'start';
+    state.textContent = action === 'start' ? 'Ligando…' : 'Desligando…'; error.textContent = '';
+    try {
+      const response = await fetch('/api/services/' + id, { method: 'POST', headers: {
+        'Content-Type': 'application/json', 'X-Homelab-Control': '1'
+      }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(25000) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Falha ao controlar o serviço.');
+    } catch (failure) { error.textContent = failure.message || 'Falha de conexão; confirme o estado antes de tentar novamente.'; }
+    finally { entry.busy = false; button.setAttribute('aria-busy', 'false'); await updateControls(); }
+  });
+}
+let controlsReading = false;
+async function updateControls() {
+  if (controlsReading) return;
+  controlsReading = true;
+  try {
+    const response = await fetch('/api/services', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Controle indisponível.');
+    for (const [id, entry] of controlCards) {
+      if (entry.busy) continue;
+      const service = data[id]; entry.current = service?.state || 'unknown';
+      entry.button.setAttribute('aria-checked', String(entry.current === 'online'));
+      entry.button.disabled = !service?.available || !['online', 'offline'].includes(entry.current);
+      entry.state.textContent = (controlLabels[entry.current] || controlLabels.unknown) + (service?.reason ? ' · ' + service.reason : '');
+    }
+  } catch (failure) {
+    for (const entry of controlCards.values()) {
+      if (entry.busy) continue;
+      entry.current = 'unknown'; entry.button.disabled = true;
+      entry.button.setAttribute('aria-checked', 'false');
+      entry.state.textContent = 'Estado desconhecido · ' + failure.message;
+    }
+  } finally { controlsReading = false; }
+}
+updateControls(); setInterval(updateControls, 5000);

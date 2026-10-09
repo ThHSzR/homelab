@@ -3,6 +3,9 @@ const path = require('node:path');
 const { collect } = require('./lib/collectors');
 const modules = require('./modules.json');
 const { readHealth } = require('./lib/watchdog');
+const { createController } = require('./lib/service-control');
+const { createControlRouter } = require('./lib/control-api');
+const controller = createController();
 const app = express();
 app.disable('x-powered-by');
 let snapshot = null;
@@ -44,12 +47,22 @@ app.get('/api/health', async (req, res) => {
   try { res.json(await readHealth()); }
   catch { res.status(503).json({ error: 'Watchdog aguardando primeira leitura ou estado indisponível' }); }
 });
+app.use('/api/services', createControlRouter({ controller }));
 app.use(express.static(path.join(__dirname, 'public')));
 const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => {
   console.log('TH HomeLab disponível na porta', server.address().port);
   refresh();
 });
 const timer = setInterval(refresh, 15000);
-function shutdown() { clearInterval(timer); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
+let reconciling = false;
+async function reconcile() {
+  if (reconciling) return;
+  reconciling = true;
+  try { await controller.reconcile(); } catch { /* Missing supervisor or held lock: fail closed. */ }
+  finally { reconciling = false; }
+}
+reconcile();
+const controlTimer = setInterval(reconcile, 15000);
+function shutdown() { clearInterval(timer); clearInterval(controlTimer); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
