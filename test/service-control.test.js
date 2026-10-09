@@ -99,3 +99,16 @@ test('in-flight control reports transition and refuses another action until comp
   await fs.access(path.join(dir, 'down'));
   release(); assert.equal((await stopping).state, 'offline');
 });
+
+test('Minecraft uses the authenticated POST route, returns 202 and rejects injected commands', async t => {
+  const actions = [];
+  const url = await serve(t, createControlRouter({ guard: (_, __, next) => next(), origin: 'https://home.example',
+    controller: { status: async () => ({state:'offline'}) },
+    minecraft: { status: async () => ({state:'starting',available:true}), request: async action => { actions.push(action); return {state:'starting',accepted:true}; } } }));
+  const headers = { Origin:'https://home.example', 'Content-Type':'application/json', 'X-Homelab-Control':'1' };
+  const response = await fetch(url + '/minecraft', {method:'POST', headers, body:JSON.stringify({action:'start'})});
+  assert.equal(response.status,202); assert.equal((await response.json()).accepted,true);
+  const state = await (await fetch(url)).json(); assert.equal(state.minecraft.state,'starting');
+  const bad = await fetch(url + '/minecraft', {method:'POST', headers, body:JSON.stringify({action:'stop',command:'kill -9'})});
+  assert.equal(bad.status,400); assert.deepEqual(actions,['start']);
+});

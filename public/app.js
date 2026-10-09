@@ -303,6 +303,7 @@ async function updateControls() {
       if (entry.busy) continue;
       const service = data[id]; entry.current = service?.state || 'unknown';
       entry.button.setAttribute('aria-checked', String(entry.current === 'online'));
+      entry.button.setAttribute('aria-busy', String(['starting', 'stopping'].includes(entry.current)));
       entry.button.disabled = !service?.available || !['online', 'offline'].includes(entry.current);
       entry.state.textContent = (controlLabels[entry.current] || controlLabels.unknown) + (service?.reason ? ' · ' + service.reason : '');
     }
@@ -311,6 +312,7 @@ async function updateControls() {
       if (entry.busy) continue;
       entry.current = 'unknown'; entry.button.disabled = true;
       entry.button.setAttribute('aria-checked', 'false');
+      entry.button.setAttribute('aria-busy', 'false');
       entry.state.textContent = 'Estado desconhecido · ' + failure.message;
     }
   } finally { controlsReading = false; }

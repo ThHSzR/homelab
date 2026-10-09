@@ -312,7 +312,7 @@ A seção Minecraft e o cartão no Health consultam o servidor Java Edition loca
 
 O monitor procura processos Java executados com `-jar` no `/proc` do Termux. Quando encontra um candidato identificável, mostra PID, nome do arquivo `.jar`, memória residente (RAM), fração da RAM do dispositivo e uso aproximado de CPU. A CPU precisa de duas leituras para calcular uma taxa; pode passar de 100% em um processo com várias threads. Quando há mais de um processo Java e não é possível escolher um candidato com segurança, o painel não atribui consumo a um servidor específico. A consulta da porta e a seleção do processo são independentes; o painel não afirma que o processo selecionado é necessariamente o dono da porta. O HomeLab não lê nem expõe argumentos completos da linha de comando.
 
-Para usar uma porta diferente, altere `MINECRAFT_PORT` no `env` do `homelab-watchdog` em `ecosystem.config.cjs`, rode `pm2 startOrReload ecosystem.config.cjs --update-env` e `pm2 save`. Em seguida, consulte `/api/health` e procure `services.minecraft`. Em computadores sem `/proc` acessível, o status da porta continua disponível, mas o consumo do processo não aparece. O HomeLab apenas observa o Minecraft; não inicia nem reinicia o servidor.
+Para usar uma porta diferente, altere `MINECRAFT_PORT` no `env` do `homelab-watchdog` em `ecosystem.config.cjs`, rode `pm2 startOrReload ecosystem.config.cjs --update-env` e `pm2 save`. Em seguida, consulte `/api/health` e procure `services.minecraft`. Em computadores sem `/proc` acessível, o status da porta continua disponível, mas o consumo do processo não aparece. O monitor apenas observa o Minecraft; o controle opcional é descrito em Interruptores em Serviços.
 
 ## Alertas no dashboard
 
@@ -359,7 +359,7 @@ Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo, sem shell. Par
 
 Dashboard e recuperação do watchdog compartilham o diretório de lock `.homelab-control-lock` dentro do serviço. A recuperação confirma novamente a ausência de `down` dentro do lock. Após uma falha abrupta, o lock não é removido automaticamente: pare dashboard e watchdog, confirme que não existe operação em execução, inspecione o estado e só então remova o diretório vazio com `rmdir "$PREFIX/var/service/bom-dia/.homelab-control-lock"`. Rode somente uma instância do dashboard e mantenha ambos os processos na mesma versão.
 
-**Minecraft:** o repositório confirma apenas monitoramento do protocolo/porta e candidatos Java via /proc. Não identifica gerenciador, script de início ou parada segura, nem confirma Debian/proot. O slider acompanha o estado recente do watchdog, mas permanece desabilitado. POST é recusado. Para habilitá-lo, informe gerenciador, comando/script exato de início (incluindo diretório e eventual proot), comando de parada graciosa e como consultar o estado supervisionado. Não envie senhas; nenhum comando genérico de kill, Java ou proot foi inventado.
+**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. O controle agora valida essa configuração local e requer RCON para salvar e parar pelo console. Veja os passos abaixo; ele continua bloqueado até concluir a preparação.
 
 ### Configuração de segurança e atualização no Android
 
@@ -393,6 +393,55 @@ pm2 save
 pm2 status
 ```
 
-5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `sv status "$PREFIX/var/service/bom-dia"`, aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até confirmar seu gerenciamento.
+5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `sv status "$PREFIX/var/service/bom-dia"`, aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até configurar seu controle seguro abaixo.
 
 Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, assinatura JWT inválida, issuer/AUD/expiração, autorização por e-mail, configuração ausente, CSRF/origem e allowlist. A interface também foi conferida localmente com serviço simulado: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
+
+
+### Minecraft: ligar pelo PM2 e desligar salvando o mundo
+
+O Bom Dia já usa o equivalente a `sv up bom-dia` e `sv down bom-dia`, com o caminho absoluto do serviço para evitar ambiguidades. Mantemos o arquivo runit `down` para a intenção sobreviver ao reboot.
+
+Minecraft não é iniciado como um segundo Java avulso: o dashboard inicia o registro PM2 existente de `~/minecraft/start.sh`. A configuração de referência fica em `minecraft.ecosystem.config.cjs`, separada da configuração do dashboard para uma atualização da central não reiniciar o mundo.
+
+**Preparação única, com o servidor já encerrado normalmente:**
+
+- Se ele está aberto diretamente com `./start.sh`, digite `save-all flush` e depois `stop` no console e aguarde o término do Java.
+- Se ele já está no PM2 antigo com reinício automático e sem RCON, não use `pm2 restart/delete/stop` como atalho para esta migração. Primeiro confirme o estado e um canal de console para encerrá-lo normalmente. A configuração antiga tem timeout de 30 s e pode forçar a finalização antes de concluir um salvamento demorado. O dashboard recusa essa configuração; a migração de um processo em execução exige confirmar os dados reais do aparelho.
+- Faça uma cópia dos diretórios do mundo antes da primeira migração e mantenha o `start.sh` existente com `exec`. A implementação não altera mundos, JAR, EULA ou parâmetros de RAM.
+
+Com o servidor offline, edite `~/minecraft/server.properties`, preservando as demais propriedades e evitando chaves duplicadas:
+
+```properties
+server-ip=127.0.0.1
+enable-rcon=true
+rcon.port=25575
+rcon.password=COLOQUE_AQUI_64_CARACTERES_HEXADECIMAIS
+```
+
+Gere uma senha local com `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` e use a saída no arquivo, sem enviá-la ao chat ou ao GitHub. Execute `chmod 600 ~/minecraft/server.properties`. O backend lê a senha diretamente desse arquivo: ela não vai para API, logs nem argumentos de processo.
+
+A ligação em 127.0.0.1 restringe também a porta do jogo ao aparelho: Playit deve encaminhar o túnel existente para `127.0.0.1:25565`. Acesso LAN direto deixará de funcionar. Não publique 25575 no Playit, Cloudflare ou roteador. Confira no aparelho `ss -ltn`: RCON deve escutar em 127.0.0.1:25575. Referência de propriedades: [PaperMC](https://docs.papermc.io/paper/reference/server-properties/).
+
+Somente após confirmar que o registro antigo está parado e não há Java avulso para esse servidor, aplique:
+
+```bash
+cd ~/services/homelab
+pm2 startOrReload minecraft.ecosystem.config.cjs
+pm2 save
+```
+
+Confira no PM2: processo único `minecraft`, script `~/minecraft/start.sh`, cwd `~/minecraft`, interpretador `$PREFIX/bin/bash`, modo fork e `autorestart:false`, sem watch, cron ou reinício por memória. Desativar auto-restart evita que o PM2 religue após o comando Minecraft `stop`; o controle valida isso antes de qualquer ação. Referência: [opções do PM2](https://pm2.keymetrics.io/docs/usage/application-declaration/).
+
+Adicione `MINECRAFT_CONTROL_ENABLED: '1'` ao env de **homelab-status**, preservando os campos de Access, e recarregue apenas o ecossistema do dashboard:
+
+```bash
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
+```
+
+**Fluxo do toggle:** POST retorna 202 e o navegador acompanha o estado pela API. Ligar inicia somente o ID PM2 validado, salva a lista PM2 e aguarda resposta do protocolo Minecraft por até 120 s. Desligar persiste a intenção offline em `~/minecraft/.homelab-desired.json`, autentica RCON exclusivamente em 127.0.0.1, envia apenas `save-all flush`, exige confirmação `Saved the game` e então envia `stop`. Aguarda o PID original sair naturalmente (até 120 s). Somente com o processo encerrado e a porta do jogo offline marca o registro PM2 como stopped e executa `pm2 save`. Não existe fallback para sinais/kill; falhas ficam no painel. Plugins que alterem a resposta de salvamento podem impedir a operação, preservando o processo.
+
+Um lock exclusivo no diretório Minecraft impede comandos concorrentes; após interrupção abrupta deve ser inspecionado com ambos os processos de controle parados, seguindo o procedimento de lock do Bom Dia. Ao reiniciar a central, uma intenção offline é reconciliada pelo mesmo fluxo seguro se PM2 ressuscitou o servidor. Não há auto-start adicional nem recovery Minecraft. Falha ao salvar o estado PM2 é reportada; a intenção offline continua presente para reconciliação. Não execute comandos externos de restart ou altere o registro PM2 enquanto o dashboard estiver controlando esse servidor.
+
+Valide uma parada no Android acompanhando `pm2 logs minecraft --lines 50 --nostream`: confirme salvamento, término do Java e estado stopped; depois teste ligar e reboot. Testes locais simulam PM2/PID e usam um servidor TCP RCON de teste. Eles não comprovam que o Android foi configurado nem oferecem garantia contra falha de armazenamento, plugins defeituosos ou encerramento do Java pelo Android.
