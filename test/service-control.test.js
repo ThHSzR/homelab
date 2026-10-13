@@ -112,3 +112,38 @@ test('Minecraft uses the authenticated POST route, returns 202 and rejects injec
   const bad = await fetch(url + '/minecraft', {method:'POST', headers, body:JSON.stringify({action:'stop',command:'kill -9'})});
   assert.equal(bad.status,400); assert.deepEqual(actions,['start']);
 });
+
+test('userspace POST uses allowlist, rejects Android/watchdog, bounds bodies, rate limits and audits without request secrets', async t => {
+  const events = [], actions = [];
+  const url = await serve(t, createControlRouter({ guard: (req, _, next) => { req.controlIdentity = 'verified-user'; next(); },
+    origin: 'https://home.example', actionLimit: 2, audit: event => events.push(event),
+    tailscale: { set: async action => { actions.push(action); return { state: 'offline' }; } } }));
+  const headers = { Origin: 'https://home.example', 'Content-Type': 'application/json', 'X-Homelab-Control': '1' };
+  const post = (id, body) => fetch(url + '/' + id, { method: 'POST', headers, body });
+  for (const id of ['tailscale-android', 'homelab-watchdog', 'tailscale', 'ssh'])
+    assert.equal((await post(id, '{"action":"stop"}')).status, 400);
+  assert.equal((await post('tailscale-userspace', JSON.stringify({ action: 'stop', secret: 'x'.repeat(2048) }))).status, 400);
+  assert.equal((await post('tailscale-userspace', '{')).status, 400);
+  assert.equal((await post('tailscale-userspace', '{"action":"stop"}')).status, 200);
+  assert.equal((await post('tailscale-userspace', '{"action":"start"}')).status, 200);
+  assert.equal((await post('tailscale-userspace', '{"action":"start"}')).status, 429);
+  assert.deepEqual(actions, ['stop', 'start']);
+  assert.ok(events.every(event => event.subject === 'verified-user' && !Object.hasOwn(event, 'body')));
+  const limited = await serve(t, createControlRouter({ guard: (_, __, next) => next(), requestLimit: 1,
+    controller: { status: async () => ({}) }, minecraft: { status: async () => ({}) }, tailscale: { status: async () => ({}) } }));
+  assert.equal((await fetch(limited)).status, 200); assert.equal((await fetch(limited)).status, 429);
+});
+
+test('API global operation lock blocks another service until Minecraft background operation settles', async t => {
+  let release; const pending = new Promise(resolve => { release = resolve; });
+  let called = 0;
+  const url = await serve(t, createControlRouter({ guard: (_, __, next) => next(), origin: 'https://home.example', audit: () => {},
+    minecraft: { request: async () => ({ state: 'stopping' }), settled: () => pending, status: async () => ({ state: 'offline' }) },
+    controller: { set: async () => { called++; return {}; } } }));
+  const headers = { Origin: 'https://home.example', 'Content-Type': 'application/json', 'X-Homelab-Control': '1' };
+  const post = id => fetch(url + '/' + id, { method: 'POST', headers, body: '{"action":"stop"}' });
+  assert.equal((await post('minecraft')).status, 202);
+  assert.equal((await post('bom-dia')).status, 409); assert.equal(called, 0);
+  release(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await post('bom-dia')).status, 200); assert.equal(called, 1);
+});

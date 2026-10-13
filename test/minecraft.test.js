@@ -45,7 +45,8 @@ test('process usage needs two samples and ignores unrelated Java processes', asy
   await fs.writeFile(path.join(root, '456/stat'), stat(90));
   await fs.writeFile(path.join(root, '456/status'), 'VmRSS:\t100 kB\n');
   await fs.writeFile(path.join(root, 'stat'), 'cpu  1000 0 0 0\n');
-  const probe = createMinecraftProbe({ procRoot: root, totalMemory: () => 1024 * 1024 * 1024,
+  let time = 0;
+  const probe = createMinecraftProbe({ procRoot: root, now: () => time, clockTicks: async () => 100, totalMemory: () => 1024 * 1024 * 1024,
     ping: async () => ({ status: 'online', detail: 'Minecraft confirmado' }) });
   let result = await probe();
   assert.equal(result.process.pid, 123);
@@ -54,8 +55,9 @@ test('process usage needs two samples and ignores unrelated Java processes', asy
   assert.equal(result.process.cpuPercent, null);
   await fs.writeFile(path.join(root, '123/stat'), stat(110));
   await fs.writeFile(path.join(root, 'stat'), 'cpu  1100 0 0 0\n');
+  time = 1000;
   result = await probe();
-  assert.ok(result.process.cpuPercent > 0);
+  assert.equal(result.process.cpuPercent, 10);
   assert.equal(result.candidateCount, 2);
   assert.equal(javaJar(Buffer.from('/usr/bin/python\0-jar\0server.jar\0')), null);
 });

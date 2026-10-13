@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
@@ -14,5 +14,8 @@
   "dependencies": {
     "express": "^5.2.1",
     "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
   }
 }

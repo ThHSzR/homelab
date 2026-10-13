@@ -8,6 +8,7 @@ const { createControlRouter } = require('./lib/control-api');
 const controller = createController();
 const { createMinecraftController } = require('./lib/minecraft-control');
 const minecraft = createMinecraftController();
+const tailscale = require('./lib/tailscale-control').createTailscaleController();
 const app = express();
 app.disable('x-powered-by');
 let snapshot = null;
@@ -49,19 +50,22 @@ app.get('/api/health', async (req, res) => {
   try { res.json(await readHealth()); }
   catch { res.status(503).json({ error: 'Watchdog aguardando primeira leitura ou estado indisponível' }); }
 });
-app.use('/api/services', createControlRouter({ controller, minecraft }));
+app.use('/api/services', createControlRouter({ controller, minecraft, tailscale }));
 app.use(express.static(path.join(__dirname, 'public')));
 const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => {
   console.log('TH HomeLab disponível na porta', server.address().port);
   refresh();
 });
 const timer = setInterval(refresh, 15000);
+server.requestTimeout = 70000;
+server.headersTimeout = 10000;
 let reconciling = false;
 async function reconcile() {
   if (reconciling) return;
   reconciling = true;
   try { await controller.reconcile(); } catch { /* Missing supervisor or held lock: fail closed. */ }
   try { await minecraft.reconcile(); } catch { /* Unsafe or unknown configuration: never force a stop. */ }
+  try { await tailscale.reconcile(); } catch { /* Unknown supervisor: fail closed. */ }
   finally { reconciling = false; }
 }
 reconcile();

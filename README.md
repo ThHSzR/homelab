@@ -310,7 +310,7 @@ Os testes cobrem transições, histórico limitado, last-seen, probes HTTP/TCP, 
 
 A seção Minecraft e o cartão no Health consultam o servidor Java Edition local na porta `25565` a cada 30 segundos. O monitor envia uma consulta do protocolo de status do Minecraft, sem entrar no jogo e sem autenticação. Quando recebe uma resposta válida, mostra versão e jogadores. Uma porta aberta sem resposta válida aparece como **possível**, pois alguns servidores desativam o status ou usam outro protocolo.
 
-O monitor procura processos Java executados com `-jar` no `/proc` do Termux. Quando encontra um candidato identificável, mostra PID, nome do arquivo `.jar`, memória residente (RAM), fração da RAM do dispositivo e uso aproximado de CPU. A CPU precisa de duas leituras para calcular uma taxa; pode passar de 100% em um processo com várias threads. Quando há mais de um processo Java e não é possível escolher um candidato com segurança, o painel não atribui consumo a um servidor específico. A consulta da porta e a seleção do processo são independentes; o painel não afirma que o processo selecionado é necessariamente o dono da porta. O HomeLab não lê nem expõe argumentos completos da linha de comando.
+O monitor procura processos Java executados com `-jar` no `/proc` do Termux. Quando encontra um candidato identificável, mostra PID, nome do arquivo `.jar`, memória residente (RAM), fração da RAM do dispositivo e uso aproximado de CPU. A CPU usa delta de utime+stime de `/proc/PID/stat`, frequência obtida por `getconf CLK_TCK` e tempo monotônico entre duas amostras; 100% equivale a um núcleo e várias threads podem ultrapassar 100%. Android no A30 nega `/proc/stat` e `/proc/uptime` (EACCES); a medição não depende desses arquivos nem de `os.cpus()`. Cada monitor mantém sua própria probe entre rodadas de 30 s. PID ou starttime alterados zeram a base; falhas de permissão, frequência, seleção ambígua ou contador inválido têm motivo explícito na API e no painel. A frequência não é presumida. Quando há mais de um processo Java e não é possível escolher um candidato com segurança, o painel não atribui consumo a um servidor específico. A consulta da porta e a seleção do processo são independentes; o painel não afirma que o processo selecionado é necessariamente o dono da porta. O HomeLab não lê nem expõe argumentos completos da linha de comando.
 
 Para usar uma porta diferente, altere `MINECRAFT_PORT` no `env` do `homelab-watchdog` em `ecosystem.config.cjs`, rode `pm2 startOrReload ecosystem.config.cjs --update-env` e `pm2 save`. Em seguida, consulte `/api/health` e procure `services.minecraft`. Em computadores sem `/proc` acessível, o status da porta continua disponível, mas o consumo do processo não aparece. O monitor apenas observa o Minecraft; o controle opcional é descrito em Interruptores em Serviços.
 
@@ -349,17 +349,17 @@ A incorporação anterior via `iframe` foi removida porque a interface SSH do Cl
 
 ## Interruptores em Serviços
 
-Há sliders apenas para **Bom Dia** e **Minecraft**. O círculo se desloca entre desligado e ligado conforme a leitura real, sem antecipar sucesso. Operações mostram Ligando/Desligando, bloqueiam novos cliques e exibem erros. O controle continua visível mesmo com o watchdog indisponível.
+As chaves de **Bom Dia** e **Minecraft** ficam dentro dos seus cartões existentes em Serviços, sem outra seção de controles. O cartão Tailscale existente tem dois lados: Android (somente monitoramento) e Termux / PM2 (chave da instância userspace). O círculo se desloca entre desligado e ligado conforme a leitura real, sem antecipar sucesso. Operações mostram Ligando/Desligando, bloqueiam novos cliques e exibem erros. O controle continua visível mesmo com o watchdog indisponível.
 
 ### Gerenciadores confirmados e limites
 
-O código existente consulta Bom Dia em `$PREFIX/var/service/bom-dia` pelo **runit**. PM2 gerencia somente dashboard e watchdog; não há configuração PM2 de Bom Dia neste repositório. Antes de usar no aparelho, confirme com `sv status "$PREFIX/var/service/bom-dia"`. O backend recusa controle se não reconhecer a resposta do supervisor. Esta implementação não foi instalada nem testada no Android remoto.
+Em consulta SSH ao A30 em 12/10/2026, Bom Dia foi confirmado no PM2 como `bom-dia`, launcher `~/services/bom-dia/start.sh`, código em `~/bom-dia`. A migração local anterior foi integrada à main; não criamos outro bot. Configure `BOM_DIA_MANAGER=pm2` no dashboard e watchdog para usar essa instalação. Sem esse campo o código continua compatível com o runit original; a escolha do gerenciador é explícita, nunca inferida pelo nome.
 
-Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo, sem shell. Parar grava primeiro o arquivo runit `down`; iniciar remove esse arquivo. A intenção de parada persiste no reboot. A cada 15 segundos, o dashboard reconcilia um serviço ainda em execução com esse marcador, inclusive após falha entre persistência e comando. Iniciar depende da supervisão normal do runit; não há loop adicional de auto-start no dashboard. Online significa processo supervisionado em execução, não sucesso funcional da automação.
+Em modo runit, Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo, sem shell. Parar grava primeiro o arquivo runit `down`; iniciar remove esse arquivo. A intenção de parada persiste no reboot. A cada 15 segundos, o dashboard reconcilia um serviço ainda em execução com esse marcador, inclusive após falha entre persistência e comando. Iniciar depende da supervisão normal do runit; não há loop adicional de auto-start no dashboard. Online significa processo supervisionado em execução, não sucesso funcional da automação.
 
 Dashboard e recuperação do watchdog compartilham o diretório de lock `.homelab-control-lock` dentro do serviço. A recuperação confirma novamente a ausência de `down` dentro do lock. Após uma falha abrupta, o lock não é removido automaticamente: pare dashboard e watchdog, confirme que não existe operação em execução, inspecione o estado e só então remova o diretório vazio com `rmdir "$PREFIX/var/service/bom-dia/.homelab-control-lock"`. Rode somente uma instância do dashboard e mantenha ambos os processos na mesma versão.
 
-**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. O controle agora valida essa configuração local e requer RCON para salvar e parar pelo console. Veja os passos abaixo; ele continua bloqueado até concluir a preparação.
+**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. A consulta SSH em 12/10/2026 confirmou Java diretamente no Termux, sem Debian/proot para Minecraft. O registro atual ainda tem `autorestart:true` e timeout de 30 s: o controle recusa essa configuração e requer a preparação abaixo, incluindo RCON local. Veja os passos abaixo; ele continua bloqueado até concluir a preparação.
 
 ### Configuração de segurança e atualização no Android
 
@@ -393,14 +393,14 @@ pm2 save
 pm2 status
 ```
 
-5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `sv status "$PREFIX/var/service/bom-dia"`, aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até configurar seu controle seguro abaixo.
+5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `pm2 status bom-dia` (ou `sv status "$PREFIX/var/service/bom-dia"` no modo runit), aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até configurar seu controle seguro abaixo.
 
 Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, assinatura JWT inválida, issuer/AUD/expiração, autorização por e-mail, configuração ausente, CSRF/origem e allowlist. A interface também foi conferida localmente com serviço simulado: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
 
 
 ### Minecraft: ligar pelo PM2 e desligar salvando o mundo
 
-O Bom Dia já usa o equivalente a `sv up bom-dia` e `sv down bom-dia`, com o caminho absoluto do serviço para evitar ambiguidades. Mantemos o arquivo runit `down` para a intenção sobreviver ao reboot.
+Em modo PM2, Bom Dia valida um único registro `bom-dia` e o caminho de `start.sh`, grava `~/services/bom-dia/desired.json`, executa start/stop apenas no ID confirmado e salva a lista PM2. O launcher privado já instalado consulta esse estado antes de iniciar o bot; `pm2 start bom-dia` sozinho não substitui a intenção offline. O watchdog em modo PM2 apenas monitora, sem recuperação runit. O modo runit preserva o arquivo `down`.
 
 Minecraft não é iniciado como um segundo Java avulso: o dashboard inicia o registro PM2 existente de `~/minecraft/start.sh`. A configuração de referência fica em `minecraft.ecosystem.config.cjs`, separada da configuração do dashboard para uma atualização da central não reiniciar o mundo.
 
@@ -445,3 +445,82 @@ pm2 save
 Um lock exclusivo no diretório Minecraft impede comandos concorrentes; após interrupção abrupta deve ser inspecionado com ambos os processos de controle parados, seguindo o procedimento de lock do Bom Dia. Ao reiniciar a central, uma intenção offline é reconciliada pelo mesmo fluxo seguro se PM2 ressuscitou o servidor. Não há auto-start adicional nem recovery Minecraft. Falha ao salvar o estado PM2 é reportada; a intenção offline continua presente para reconciliação. Não execute comandos externos de restart ou altere o registro PM2 enquanto o dashboard estiver controlando esse servidor.
 
 Valide uma parada no Android acompanhando `pm2 logs minecraft --lines 50 --nostream`: confirme salvamento, término do Java e estado stopped; depois teste ligar e reboot. Testes locais simulam PM2/PID e usam um servidor TCP RCON de teste. Eles não comprovam que o Android foi configurado nem oferecem garantia contra falha de armazenamento, plugins defeituosos ou encerramento do Java pelo Android.
+
+### Implantação desta atualização sem perder a migração local
+
+Foi feita somente inspeção SSH e uma medição isolada de CPU no A30; nenhum processo foi reiniciado ou desligado. A medição nova retornou 20,1% no PID Java 27995, intervalo de 1,74 s. Os quatro campos Access estavam ausentes do ambiente do dashboard e `MINECRAFT_CONTROL_ENABLED` não estava habilitado. O código permanece fechado até a configuração abaixo.
+
+No A30 existem alterações locais da migração Bom Dia em seis arquivos. Antes do pull, preserve-as; não aplique o stash automaticamente sobre a implementação integrada:
+
+```sh
+cd ~/services/homelab
+git status --short
+git stash push --include-untracked -m 'bom-dia-local-antes-dashboard' -- ecosystem.config.cjs lib/collectors.js lib/service-control.js lib/watchdog.js lib/bom-dia-pm2.js test/bom-dia-pm2.test.js
+git pull --ff-only origin main
+npm ci
+npm test
+```
+
+Se houver alterações adicionais, preserve-as e revise antes do pull. O stash mantém uma cópia recuperável dos arquivos anteriores; não o apague antes de comparar. Código/dados e `desired.json` privados do bot, supervisor Tailscale e mundos ficam fora do repositório e não são substituídos pelo pull.
+
+Crie `~/services/homelab-control.env` com permissão 600, fora do Git. Preencha os valores reais da aplicação Cloudflare Access **do dashboard**, mantendo a política Access que já protege o hostname e `/api/services/*` (sem bypass). Os dados vêm de Zero Trust > Access > Applications e do domínio da equipe:
+
+```sh
+export BOM_DIA_MANAGER='pm2'
+export CF_ACCESS_ISSUER='https://SUA-EQUIPE.cloudflareaccess.com'
+export CF_ACCESS_AUD='AUD-DA-APLICACAO-DO-DASHBOARD'
+export CONTROL_ADMIN_EMAILS='SEU-EMAIL-AUTORIZADO'
+export CONTROL_ORIGIN='https://HOSTNAME-DO-DASHBOARD'
+export MINECRAFT_CONTROL_ENABLED='0'
+export TAILSCALE_CONTROL_ENABLED='0'
+```
+
+Os exemplos devem ser substituídos, não usados literalmente. O origin verifica assinatura RS256, issuer, audience, expiração e identidade administrativa; headers de e-mail sozinhos não autenticam. [Validação oficial do JWT Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+
+```sh
+chmod 600 ~/services/homelab-control.env
+. ~/services/homelab-control.env
+cd ~/services/homelab
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
+pm2 logs homelab-status --lines 30 --nostream
+pm2 logs homelab-watchdog --lines 30 --nostream
+```
+
+Para atualizações apenas de código, preservando o ambiente já configurado: `pm2 restart homelab-status homelab-watchdog`. Sempre carregue o arquivo privado antes de reaplicar `ecosystem.config.cjs`; seus valores de segurança padrão bloqueiam os controles. Valide pelo navegador no hostname Access: sem sessão autorizada, controles devem permanecer bloqueados. Um `curl http://127.0.0.1:3000/api/services` sem JWT deve retornar 401 (ou 503 enquanto não configurado), nunca autorizar uma operação.
+
+Após preparar Minecraft com o servidor encerrado normalmente conforme a seção anterior, altere somente `MINECRAFT_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. A chave pede confirmação antes de salvar e desconectar jogadores. Não mude a configuração do Minecraft em execução para contornar a validação.
+
+### Tailscale Android e Termux / PM2
+
+O lado Android mede exclusivamente a interface VPN do aplicativo. Não há método autorizado de controle Android, portanto não há chave desse lado. O lado Termux consulta o registro único `tailscale-userspace`, que no A30 executa `~/services/tailscale-userspace/supervisor.cjs` pelo Node do Termux. Esse supervisor inicia um daemon userspace em Debian/proot e verifica seu socket privado. Ele não é `homelab-watchdog` nem o aplicativo Android. A API local informa `Running`, `NeedsLogin` ou indisponibilidade; PM2 online sozinho não prova conectividade da tailnet.
+
+Para habilitar a chave sem ressuscitar uma parada intencional, instale a versão com trava `desired.json` e `stop_exit_codes:[0]`. Faça isto no **terminal local do Termux ou por SSH LAN**, pois reiniciar/parar essa instância corta SSH userspace. Preserve start.sh, cli.sh, estado, identidade e Serve existentes; não registre outro daemon:
+
+```sh
+cd ~/services/homelab
+base="$HOME/services/tailscale-userspace"
+cp "$base/supervisor.cjs" "$base/supervisor.cjs.before-dashboard"
+```
+
+Crie `$base/desired.json` com `{"desired":"online"}` se a instância deve continuar ligada, ou `{"desired":"offline"}` para manter parada. Se esse arquivo já existir, preserve e revise seu estado. Instale só o supervisor, sem copiar segredos:
+
+```sh
+chmod 600 "$base/desired.json"
+cp deploy/tailscale-supervisor.cjs "$base/supervisor.cjs"
+chmod 600 "$base/supervisor.cjs"
+pm2 startOrReload tailscale.ecosystem.config.cjs --update-env
+pm2 save
+```
+
+O launcher sai antes de criar filhos quando o estado está offline, ausente ou inválido. PM2 não reinicia saída 0. Após SIGINT/SIGTERM, o supervisor encerra apenas seu grupo de daemon e sai em 2,5 s; PM2 tem timeout de 4 s. Recuperação por falha da API só ocorre dentro do supervisor ativo e respeita intenção offline. A central valida o contrato do supervisor, o ID, script, interpretador e configuração antes de controlar; grava intenção atomicamente, executa start/stop nesse ID, salva PM2 e reconcilia apenas paradas. Nenhuma operação liga a VPN Android ou reinicia watchdog.
+
+Defina `TAILSCALE_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. Teste a chave pela conexão LAN/local, confira `pm2 status tailscale-userspace`, o estado de `desired.json` e `/api/health` após duas rodadas. Offline deve sobreviver à restauração/reboot. O painel pede confirmação da perda de conexões SSH antes de desligar userspace. Rollback do código, se necessário, exige restaurar o supervisor e sua configuração PM2 anterior pela LAN; preserve intenção offline durante o rollback.
+
+### Limites e validação
+
+POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop. Origin HTTPS exato, Fetch Metadata, header próprio e JSON de até 1 KB protegem contra CSRF; não há CORS liberado. JWT é obrigatório até em acesso local. Há 120 consultas e 20 ações por minuto por instância da API, com resposta 429; um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
+
+Logs `[control]` registram serviço, ação, subject validado e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
+
+`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, autenticação/assinatura, CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. A medição isolada por SSH comprova a leitura de CPU no A30; implantação completa, credenciais Access e ciclos reais de start/stop/reboot permanecem pendentes.

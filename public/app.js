@@ -121,7 +121,7 @@ function render(data) {
   $('battery').textContent = data.battery.available ? data.battery.percentage + '%' : 'Sem leitura';
   $('battery-detail').textContent = data.battery.available ? (data.battery.temperature ?? '—') + ' °C · ' + ({ CHARGING: 'Carregando', DISCHARGING: 'Em uso', FULL: 'Carga completa', NOT_CHARGING: 'Sem carregar' }[data.battery.status] || data.battery.status || '') : data.battery.reason;
   $('tail-ip').textContent = data.tailscale.ip || 'Não detectado';
-  $('tail-status').textContent = data.tailscale.detected ? 'Interface ' + data.tailscale.interface + ' ativa · alcance remoto não verificado' : 'Nenhuma interface da rede privada detectada';
+  $('tail-status').textContent = data.stale ? 'Leitura desatualizada' : data.tailscale.detected == null ? 'Interfaces Android indisponíveis' : data.tailscale.detected ? 'Interface ' + data.tailscale.interface + ' ativa · alcance remoto não verificado' : 'Nenhuma interface da rede privada detectada';
   const boot = data.persistence.lastRun;
   $('boot-state').textContent = data.persistence.bootScriptRanThisBoot ? 'Script executado neste boot' : 'Teste de reboot pendente';
   $('boot-detail').textContent = boot ? 'Última execução: ' + new Date(boot.timestamp).toLocaleString('pt-BR') + (boot.source === 'manual-test' ? ' · teste manual' : '') : 'Aguardando primeira execução do script';
@@ -171,32 +171,47 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { update(); health(); }
 });
 
-const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia · runit', external: 'Conectividade externa', minecraft: 'Minecraft · Java', tailscale: 'Tailscale · Android' };
+const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia', external: 'Conectividade externa', minecraft: 'Minecraft · Java' };
+function renderHealthCards(data) {
+  // Preserve card and switch identity on every watchdog refresh.
+  for (const [id, name] of Object.entries(healthNames)) {
+    const s = data?.services?.[id];
+    let card = $('health-card-' + id);
+    if (!card) {
+      card = el('article', '', 'panel'); card.id = 'health-card-' + id;
+      card.append(el('strong', name));
+      const reading = el('div', '', 'service-reading'); reading.id = 'reading-' + id;
+      card.append(reading); $('health-list').append(card);
+    }
+    const reading = $('reading-' + id);
+    const stale = !data || data.stale || !s;
+    reading.replaceChildren(el('p', stale ? 'Sem leitura recente' : labels[s.status] || s.status, 'status ' + (stale ? 'unknown' : s.status)),
+      el('p', s ? s.latencyMs + ' ms · duração da verificação' : 'Monitor indisponível'),
+      ...(s?.manager ? [el('small', 'Gerenciado por ' + s.manager)] : []),
+      ...(s?.detail && id === 'bom-dia' ? [el('small', s.detail)] : []),
+      el('small', 'Última mudança: ' + (s?.changedAt ? new Date(s.changedAt).toLocaleString('pt-BR') : '—')),
+      el('small', 'Visto online: ' + (s?.lastSeen ? new Date(s.lastSeen).toLocaleString('pt-BR') : 'Ainda não')));
+    const recent = data?.history?.slice(-20) || [];
+    const strip = el('div', '', 'health-history');
+    recent.forEach(row => {
+      const status = row.services[id]?.status || 'unknown';
+      const dot = el('span', '', 'health-dot ' + status);
+      dot.title = new Date(row.timestamp).toLocaleString('pt-BR') + ' · ' + (labels[status] || status); strip.append(dot);
+    });
+    strip.setAttribute('aria-label', 'Últimas ' + recent.length + ' verificações; verde indica online');
+    reading.append(strip);
+  }
+  const userspace = data?.services?.['tailscale-userspace'];
+  $('tail-termux-ip').textContent = !data?.stale && userspace?.ip ? userspace.ip : '—';
+  $('tail-termux-status').textContent = !data || data.stale ? 'Sem leitura recente do daemon' : userspace?.detail || 'Instância userspace não confirmada';
+}
 async function health() {
   try {
     const response = await diagnosticFetch('/api/health', 'health');
     if (!response.ok) throw new Error();
     const data = await response.json();
     $('health-summary').textContent = data.stale ? 'Monitor sem leitura recente' : 'Última leitura: ' + new Date(data.timestamp).toLocaleTimeString('pt-BR');
-    $('health-list').replaceChildren(...Object.entries(data.services).map(([id, s]) => {
-      const card = el('article', '', 'panel');
-      card.append(el('strong', healthNames[id] || id), el('p', data.stale ? 'Dados desatualizados' : labels[s.status] || s.status, 'status ' + (data.stale ? 'unknown' : s.status)),
-        el('p', s.latencyMs + ' ms · duração da verificação'),
-        ...(id === 'tailscale' ? [el('p', data.stale ? 'Leitura desatualizada · estado da VPN não confirmado' : (s.detail || 'Sem detalhes da VPN'), 'service-detail')] : []),
-        el('small', 'Última mudança: ' + new Date(s.changedAt).toLocaleString('pt-BR')),
-        el('small', 'Visto online: ' + (s.lastSeen ? new Date(s.lastSeen).toLocaleString('pt-BR') : 'Ainda não')));
-      const recent = data.history.slice(-20);
-      const strip = el('div', '', 'health-history');
-      recent.forEach(row => {
-        const status = row.services[id]?.status || 'unknown';
-        const dot = el('span', '', 'health-dot ' + status);
-        dot.title = new Date(row.timestamp).toLocaleString('pt-BR') + ' · ' + (labels[status] || status);
-        strip.append(dot);
-      });
-      strip.setAttribute('aria-label', 'Últimas ' + recent.length + ' verificações; verde indica online');
-      card.append(strip);
-      return card;
-    }));
+    renderHealthCards(data);
     latestHealth = data;
     renderInsights();
     renderMinecraft(data.services.minecraft, data.stale);
@@ -207,7 +222,7 @@ async function health() {
       (data.recovery.recommendation ? ' ' + data.recovery.recommendation : '');
   } catch {
     $('health-summary').textContent = 'Monitor indisponível · dados anteriores podem estar desatualizados';
-    $('health-list').replaceChildren(el('p', 'Aguardando nova leitura do watchdog.', 'empty'));
+    renderHealthCards(null);
     latestHealth = null;
     renderInsights();
     renderMinecraft(null, true);
@@ -223,6 +238,7 @@ function renderMinecraft(minecraft, stale) {
     $('minecraft-detail').textContent = 'Dados indisponíveis ou desatualizados';
     $('minecraft-memory').textContent = '—';
     $('minecraft-cpu').textContent = '—';
+    $('minecraft-cpu-reason').textContent = 'Sem leitura recente do monitor';
     $('minecraft-players').textContent = '—';
     $('minecraft-process').textContent = 'Verifique o processo homelab-watchdog no PM2.';
     return;
@@ -233,7 +249,8 @@ function renderMinecraft(minecraft, stale) {
   $('minecraft-memory').textContent = minecraft.process?.rssBytes == null ? '—' :
     (minecraft.process.rssBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' MB' +
     (minecraft.process.memoryPercent == null ? '' : ' · ' + minecraft.process.memoryPercent.toLocaleString('pt-BR') + '% da RAM');
-  $('minecraft-cpu').textContent = minecraft.process?.cpuPercent == null ? 'Aguardando 2ª leitura' : minecraft.process.cpuPercent + '%';
+  $('minecraft-cpu').textContent = minecraft.process?.cpuPercent == null ? '—' : minecraft.process.cpuPercent.toLocaleString('pt-BR') + '%';
+  $('minecraft-cpu-reason').textContent = minecraft.process?.cpuPercent == null ? minecraft.process?.cpuReason || minecraft.cpuReason || 'Medição indisponível; atualize o watchdog.' : '100% equivale a um núcleo · intervalo ' + Math.round(minecraft.process.sampleIntervalMs / 1000) + ' s';
   $('minecraft-players').textContent = minecraft.players == null ? '—' : minecraft.players + ' / ' + (minecraft.maxPlayers ?? '—');
   $('minecraft-process').textContent = minecraft.process ?
     'Processo Java candidato: ' + minecraft.process.jar + ' · PID ' + minecraft.process.pid + '. O vínculo com a porta não foi verificado.' :
@@ -260,11 +277,13 @@ function renderInsights() {
 }
 
 
-// These cards survive health refreshes, including watchdog outages.
+// Controls are children of the existing cards, never a second service grid.
 const controlCards = new Map();
+let controlRevision = 0;
 const controlLabels = { online: 'Ligado', offline: 'Desligado', starting: 'Ligando…', stopping: 'Desligando…', unknown: 'Estado desconhecido' };
-for (const [id, name] of [['bom-dia', 'Bom Dia'], ['minecraft', 'Minecraft']]) {
-  const card = el('article', '', 'panel service-control');
+renderHealthCards(null);
+for (const [id, name, parent] of [['bom-dia', 'Bom Dia', 'health-card-bom-dia'], ['minecraft', 'Minecraft', 'health-card-minecraft'], ['tailscale-userspace', 'Tailscale Termux', 'tailscale-termux']]) {
+  const card = el('div', '', 'service-control');
   const button = el('button', '', 'service-toggle');
   button.type = 'button'; button.setAttribute('role', 'switch');
   button.setAttribute('aria-label', 'Ligar ou desligar ' + name);
@@ -272,19 +291,22 @@ for (const [id, name] of [['bom-dia', 'Bom Dia'], ['minecraft', 'Minecraft']]) {
   button.append(el('span', '', 'toggle-thumb'));
   const state = el('p', 'Consultando…'); state.setAttribute('role', 'status');
   const error = el('p', '', 'control-error'); error.setAttribute('role', 'alert');
-  card.append(el('strong', name), button, state, error);
-  $('service-controls').append(card);
-  const entry = { button, state, error, busy: false, current: 'unknown' };
+  card.append(button, state, error);
+  $(parent).append(card);
+  const entry = { button, state, error, busy: false, current: 'unknown', confirmed: null };
   controlCards.set(id, entry);
   button.addEventListener('click', async () => {
-    if (entry.busy || button.disabled) return;
-    entry.busy = true; button.disabled = true; button.setAttribute('aria-busy', 'true');
+    if (entry.busy || button.disabled || [...controlCards.values()].some(e => e.busy)) return;
     const action = entry.current === 'online' ? 'stop' : 'start';
+    if (id === 'minecraft' && action === 'stop' && !window.confirm('Desligar o Minecraft? O mundo será salvo e os jogadores serão desconectados.')) return;
+    if (id === 'tailscale-userspace' && action === 'stop' && !window.confirm('Desligar o Tailscale do Termux? Conexões SSH por esta instância serão interrompidas.')) return;
+    controlRevision++;
+    entry.busy = true; button.disabled = true; button.setAttribute('aria-busy', 'true');
     state.textContent = action === 'start' ? 'Ligando…' : 'Desligando…'; error.textContent = '';
     try {
       const response = await fetch('/api/services/' + id, { method: 'POST', headers: {
         'Content-Type': 'application/json', 'X-Homelab-Control': '1'
-      }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(25000) });
+      }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(65000), redirect: 'error' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Falha ao controlar o serviço.');
     } catch (failure) { error.textContent = failure.message || 'Falha de conexão; confirme o estado antes de tentar novamente.'; }
@@ -295,19 +317,25 @@ let controlsReading = false;
 async function updateControls() {
   if (controlsReading) return;
   controlsReading = true;
+  const revision = controlRevision;
   try {
-    const response = await fetch('/api/services', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    const response = await fetch('/api/services', { cache: 'no-store', signal: AbortSignal.timeout(10000), redirect: 'error' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Controle indisponível.');
+    // A response sampled before a command cannot overwrite its result.
+    if (revision !== controlRevision) return;
     for (const [id, entry] of controlCards) {
       if (entry.busy) continue;
       const service = data[id]; entry.current = service?.state || 'unknown';
-      entry.button.setAttribute('aria-checked', String(entry.current === 'online'));
+      if (['online', 'offline'].includes(entry.current)) entry.confirmed = entry.current;
+      entry.button.setAttribute('aria-checked', String(entry.current === 'online' ||
+        ['starting', 'stopping'].includes(entry.current) && (entry.confirmed === 'online' || entry.confirmed == null && entry.current === 'stopping')));
       entry.button.setAttribute('aria-busy', String(['starting', 'stopping'].includes(entry.current)));
       entry.button.disabled = !service?.available || !['online', 'offline'].includes(entry.current);
       entry.state.textContent = (controlLabels[entry.current] || controlLabels.unknown) + (service?.reason ? ' · ' + service.reason : '');
     }
   } catch (failure) {
+    if (revision !== controlRevision) return;
     for (const entry of controlCards.values()) {
       if (entry.busy) continue;
       entry.current = 'unknown'; entry.button.disabled = true;
