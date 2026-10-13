@@ -13,7 +13,9 @@ async function ui(t) {
   w.AbortSignal = AbortSignal; w.setInterval = () => 0;
   let states = { 'bom-dia': { state: 'offline', available: true }, minecraft: { state: 'online', available: true },
     'tailscale-userspace': { state: 'online', available: true } };
-  let health = { timestamp: new Date().toISOString(), stale: false, history: [], recovery: { enabled: false, attempts: 0 },
+  let health = { timestamp: new Date().toISOString(), stale: false,
+    history: [{ timestamp: new Date().toISOString(), services: { tailscale: { status: 'online' }, 'tailscale-userspace': { status: 'offline' } } }],
+    recovery: { enabled: false, attempts: 0 },
     services: { 'bom-dia': { status: 'offline', manager: 'PM2' }, minecraft: { status: 'online', detail: 'Minecraft',
       process: { cpuPercent: null, cpuReason: 'getconf CLK_TCK indisponível.' } },
       'tailscale-userspace': { status: 'online', ip: '100.65.49.34', detail: 'PM2 · Running' } } };
@@ -44,6 +46,12 @@ test('switches belong to existing service cards, Tailscale is split, refresh and
   assert.equal(d.querySelector('#service-controls'), null);
   assert.equal(d.querySelectorAll('#tailscale-android [role=switch]').length, 0);
   assert.equal(d.querySelectorAll('#tailscale-termux [role=switch]').length, 1);
+  assert.equal(d.querySelector('#health-list').lastElementChild.id, 'health-card-tailscale');
+  assert.ok(bom.closest('.service-card-heading').querySelector('strong').textContent.includes('Bom Dia'));
+  assert.ok(mc.closest('.service-card-heading').querySelector('strong').textContent.includes('Minecraft'));
+  assert.ok(d.querySelector('#tailscale-termux [role=switch]').closest('.service-card-heading').querySelector('h3'));
+  assert.equal(d.querySelector('#tailscale-android .health-dot.online')?.tagName, 'SPAN');
+  assert.equal(d.querySelector('#tailscale-termux .health-dot.offline')?.tagName, 'SPAN');
   assert.equal(mc.getAttribute('aria-checked'), 'true'); assert.equal(bom.getAttribute('aria-checked'), 'false');
   await f.w.health(); assert.equal(d.querySelector('#health-card-minecraft [role=switch]'), mc);
   assert.match(d.querySelector('#minecraft-cpu-reason').textContent, /CLK_TCK/);

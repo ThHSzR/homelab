@@ -6,10 +6,9 @@ module.exports = { apps: [{ name: 'homelab-status', script: 'server.js', cwd: __
   max_memory_restart: '180M', time: true,
   out_file: path.join(os.homedir(), 'services/logs/homelab-status-out.log'),
   error_file: path.join(os.homedir(), 'services/logs/homelab-status-error.log'),
-  env: { NODE_ENV: 'production', PORT: '3000', HOST: '0.0.0.0',
+  env: { NODE_ENV: 'production', PORT: '3000', HOST: '127.0.0.1',
     BOM_DIA_MANAGER: process.env.BOM_DIA_MANAGER || 'runit',
-    CF_ACCESS_ISSUER: process.env.CF_ACCESS_ISSUER || '', CF_ACCESS_AUD: process.env.CF_ACCESS_AUD || '',
-    CONTROL_ADMIN_EMAILS: process.env.CONTROL_ADMIN_EMAILS || '', CONTROL_ORIGIN: process.env.CONTROL_ORIGIN || '',
+    CONTROL_ORIGIN: process.env.CONTROL_ORIGIN || 'https://homelab.thsouza.eng.br',
     MINECRAFT_CONTROL_ENABLED: process.env.MINECRAFT_CONTROL_ENABLED || '0',
     TAILSCALE_CONTROL_ENABLED: process.env.TAILSCALE_CONTROL_ENABLED || '0' }
 }, { name: 'homelab-watchdog', script: 'watchdog.js', cwd: __dirname,

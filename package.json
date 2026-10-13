@@ -12,8 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.2.1",
-    "jose": "^6.2.12"
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"

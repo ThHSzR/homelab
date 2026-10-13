@@ -194,7 +194,7 @@ function renderHealthCards(data) {
     const recent = data?.history?.slice(-20) || [];
     const strip = el('div', '', 'health-history');
     recent.forEach(row => {
-      const status = row.services[id]?.status || 'unknown';
+      const status = row.services?.[id]?.status || 'unknown';
       const dot = el('span', '', 'health-dot ' + status);
       dot.title = new Date(row.timestamp).toLocaleString('pt-BR') + ' · ' + (labels[status] || status); strip.append(dot);
     });
@@ -204,6 +204,17 @@ function renderHealthCards(data) {
   const userspace = data?.services?.['tailscale-userspace'];
   $('tail-termux-ip').textContent = !data?.stale && userspace?.ip ? userspace.ip : '—';
   $('tail-termux-status').textContent = !data || data.stale ? 'Sem leitura recente do daemon' : userspace?.detail || 'Instância userspace não confirmada';
+  for (const [id, parent] of [['tailscale', 'tailscale-android'], ['tailscale-userspace', 'tailscale-termux']]) {
+    const history = $(parent).querySelector('.health-history');
+    const recent = data?.history?.slice(-20) || [];
+    history.replaceChildren(...recent.map(row => {
+      const status = row.services?.[id]?.status || 'unknown';
+      const dot = el('span', '', 'health-dot ' + status);
+      dot.title = new Date(row.timestamp).toLocaleString('pt-BR') + ' · ' + (labels[status] || status);
+      return dot;
+    }));
+    history.setAttribute('aria-label', 'Últimas ' + recent.length + ' verificações de ' + (id === 'tailscale' ? 'Tailscale Android' : 'Tailscale Termux'));
+  }
 }
 async function health() {
   try {
@@ -250,10 +261,12 @@ function renderMinecraft(minecraft, stale) {
     (minecraft.process.rssBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' MB' +
     (minecraft.process.memoryPercent == null ? '' : ' · ' + minecraft.process.memoryPercent.toLocaleString('pt-BR') + '% da RAM');
   $('minecraft-cpu').textContent = minecraft.process?.cpuPercent == null ? '—' : minecraft.process.cpuPercent.toLocaleString('pt-BR') + '%';
-  $('minecraft-cpu-reason').textContent = minecraft.process?.cpuPercent == null ? minecraft.process?.cpuReason || minecraft.cpuReason || 'Medição indisponível; atualize o watchdog.' : '100% equivale a um núcleo · intervalo ' + Math.round(minecraft.process.sampleIntervalMs / 1000) + ' s';
+  $('minecraft-cpu-reason').textContent = minecraft.process?.cpuPercent == null ? minecraft.process?.cpuReason || minecraft.cpuReason || 'Medição indisponível; atualize o watchdog.' :
+    minecraft.process.cpuMethod === 'pm2-monitor' ? 'Leitura do PM2 · processo minecraft registrado' :
+      '100% equivale a um núcleo · intervalo ' + Math.round(minecraft.process.sampleIntervalMs / 1000) + ' s';
   $('minecraft-players').textContent = minecraft.players == null ? '—' : minecraft.players + ' / ' + (minecraft.maxPlayers ?? '—');
   $('minecraft-process').textContent = minecraft.process ?
-    'Processo Java candidato: ' + minecraft.process.jar + ' · PID ' + minecraft.process.pid + '. O vínculo com a porta não foi verificado.' :
+    (minecraft.process.cpuMethod === 'pm2-monitor' ? 'Processo PM2: ' : 'Processo Java candidato: ') + minecraft.process.jar + ' · PID ' + minecraft.process.pid + '. O vínculo com a porta não foi verificado.' :
     'Processo Java não identificado; o estado da porta é medido separadamente.';
 }
 
@@ -281,7 +294,11 @@ function renderInsights() {
 const controlCards = new Map();
 let controlRevision = 0;
 const controlLabels = { online: 'Ligado', offline: 'Desligado', starting: 'Ligando…', stopping: 'Desligando…', unknown: 'Estado desconhecido' };
+const tailscaleCard = $('tailscale-android').closest('.panel');
+tailscaleCard.id = 'health-card-tailscale';
+for (const id of ['tailscale-android', 'tailscale-termux']) $(id).append(el('div', '', 'health-history'));
 renderHealthCards(null);
+$('health-list').append(tailscaleCard);
 for (const [id, name, parent] of [['bom-dia', 'Bom Dia', 'health-card-bom-dia'], ['minecraft', 'Minecraft', 'health-card-minecraft'], ['tailscale-userspace', 'Tailscale Termux', 'tailscale-termux']]) {
   const card = el('div', '', 'service-control');
   const button = el('button', '', 'service-toggle');
@@ -291,7 +308,11 @@ for (const [id, name, parent] of [['bom-dia', 'Bom Dia', 'health-card-bom-dia'],
   button.append(el('span', '', 'toggle-thumb'));
   const state = el('p', 'Consultando…'); state.setAttribute('role', 'status');
   const error = el('p', '', 'control-error'); error.setAttribute('role', 'alert');
-  card.append(button, state, error);
+  const heading = el('div', '', 'service-card-heading');
+  const title = $(parent).querySelector(id === 'tailscale-userspace' ? 'h3' : 'strong');
+  heading.append(title, button);
+  $(parent).prepend(heading);
+  card.append(state, error);
   $(parent).append(card);
   const entry = { button, state, error, busy: false, current: 'unknown', confirmed: null };
   controlCards.set(id, entry);

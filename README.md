@@ -114,16 +114,16 @@ pm2 status
 pm2 logs homelab-status
 ```
 
-Por padrão, a central fica disponível na porta:
+Por padrão, a central escuta apenas na porta local:
 
 ```text
-3000
+127.0.0.1:3000
 ```
 
-Dentro da tailnet, basta acessar:
+Para abrir o dashboard remotamente, acesse o hostname protegido pelo Cloudflare Access:
 
 ```text
-http://IP_TAILSCALE_DO_CELULAR:3000
+https://homelab.thsouza.eng.br
 ```
 
 ## SSH remoto
@@ -349,7 +349,7 @@ A incorporação anterior via `iframe` foi removida porque a interface SSH do Cl
 
 ## Interruptores em Serviços
 
-As chaves de **Bom Dia** e **Minecraft** ficam dentro dos seus cartões existentes em Serviços, sem outra seção de controles. O cartão Tailscale existente tem dois lados: Android (somente monitoramento) e Termux / PM2 (chave da instância userspace). O círculo se desloca entre desligado e ligado conforme a leitura real, sem antecipar sucesso. Operações mostram Ligando/Desligando, bloqueiam novos cliques e exibem erros. O controle continua visível mesmo com o watchdog indisponível.
+As chaves de **Bom Dia** e **Minecraft** ficam ao lado do nome em seus cartões de Serviços. Ao lado do Minecraft há um único cartão Tailscale, com Android (somente monitoramento) e Termux / PM2 (chave da instância userspace), cada um com sua linha de histórico online/offline. O círculo se desloca entre desligado e ligado conforme a leitura real da API, sem antecipar sucesso. Operações mostram Ligando/Desligando, bloqueiam novos cliques e exibem erros. O controle continua visível mesmo com o watchdog indisponível.
 
 ### Gerenciadores confirmados e limites
 
@@ -363,27 +363,25 @@ Dashboard e recuperação do watchdog compartilham o diretório de lock `.homela
 
 ### Configuração de segurança e atualização no Android
 
-1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. Use a aplicação do dashboard, não a aplicação SSH. O backend valida assinatura RS256, issuer, AUD, expiração, identidade e e-mail permitido; headers de e-mail sozinhos não autorizam nada. Referência: [validar JWT do Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
-2. No Termux, atualize e instale as dependências (Node 22 ou superior, compatível com jose 6):
+1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. A autenticação ocorre nesse acesso ao site. O Express escuta somente em `127.0.0.1` e recusa conexões não locais à API de controle; configure a origem do Cloudflare Tunnel para `http://127.0.0.1:3000`. Não exponha a porta 3000 diretamente pela LAN ou tailnet.
+2. No Termux, atualize e instale as dependências (Node 22 ou superior):
 
 ```bash
 cd ~/services/homelab
 git pull --ff-only origin main
 npm ci
 npm test
-sv status "$PREFIX/var/service/bom-dia"
+pm2 status bom-dia
 ```
 
-3. Configure no `env` de **homelab-status** em `ecosystem.config.cjs` os valores reais abaixo. São configurações locais; não publique dados pessoais no Git:
+3. Configure o gerenciador usado pelo Bom Dia. No A30 ele foi confirmado como PM2:
 
 ```js
-CF_ACCESS_ISSUER: 'https://SEU-TIME.cloudflareaccess.com',
-CF_ACCESS_AUD: 'AUD-DA-APLICACAO-DO-DASHBOARD',
-CONTROL_ADMIN_EMAILS: 'SEU-EMAIL-AUTORIZADO',
-CONTROL_ORIGIN: 'https://HOSTNAME-DO-DASHBOARD'
+BOM_DIA_MANAGER: 'pm2',
+CONTROL_ORIGIN: 'https://homelab.thsouza.eng.br'
 ```
 
-Issuer deve estar sem barra final; origem deve ser exata e sem caminho/barra final. Vários e-mails podem ser separados por vírgula. Esses campos são obrigatórios: sem eles, o controle falha fechado (503) e os sliders ficam bloqueados. Não existe bypass de autenticação para acesso local. POST exige Origin exato, JSON e header específico; Fetch Metadata cross-site é recusado. Corpo aceita somente `{action: 'start' | 'stop'}`, limitado a 1 KB; não recebe caminhos, comandos ou senhas.
+`CONTROL_ORIGIN` já tem esse padrão; altere somente se mudar o hostname HTTPS. Não é preciso configurar uma segunda autenticação ou e-mail no backend. POST exige Origin exato, JSON e header específico; Fetch Metadata cross-site é recusado. Corpo aceita somente `{action: 'start' | 'stop'}`, limitado a 1 KB; não recebe caminhos, comandos ou senhas.
 
 4. Recarregue **dashboard e watchdog** e persista o PM2:
 
@@ -395,7 +393,7 @@ pm2 status
 
 5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `pm2 status bom-dia` (ou `sv status "$PREFIX/var/service/bom-dia"` no modo runit), aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até configurar seu controle seguro abaixo.
 
-Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, assinatura JWT inválida, issuer/AUD/expiração, autorização por e-mail, configuração ausente, CSRF/origem e allowlist. A interface também foi conferida localmente com serviço simulado: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
+Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, acesso local, CSRF/origem e allowlist. A interface também é testada com serviços simulados: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
 
 
 ### Minecraft: ligar pelo PM2 e desligar salvando o mundo
@@ -433,7 +431,7 @@ pm2 save
 
 Confira no PM2: processo único `minecraft`, script `~/minecraft/start.sh`, cwd `~/minecraft`, interpretador `$PREFIX/bin/bash`, modo fork e `autorestart:false`, sem watch, cron ou reinício por memória. Desativar auto-restart evita que o PM2 religue após o comando Minecraft `stop`; o controle valida isso antes de qualquer ação. Referência: [opções do PM2](https://pm2.keymetrics.io/docs/usage/application-declaration/).
 
-Adicione `MINECRAFT_CONTROL_ENABLED: '1'` ao env de **homelab-status**, preservando os campos de Access, e recarregue apenas o ecossistema do dashboard:
+Adicione `MINECRAFT_CONTROL_ENABLED: '1'` ao env de **homelab-status** após concluir a preparação segura e recarregue apenas o ecossistema do dashboard:
 
 ```bash
 pm2 startOrReload ecosystem.config.cjs --update-env
@@ -448,7 +446,7 @@ Valide uma parada no Android acompanhando `pm2 logs minecraft --lines 50 --nostr
 
 ### Implantação desta atualização sem perder a migração local
 
-Foi feita somente inspeção SSH e uma medição isolada de CPU no A30; nenhum processo foi reiniciado ou desligado. A medição nova retornou 20,1% no PID Java 27995, intervalo de 1,74 s. Os quatro campos Access estavam ausentes do ambiente do dashboard e `MINECRAFT_CONTROL_ENABLED` não estava habilitado. O código permanece fechado até a configuração abaixo.
+Em inspeção SSH anterior no A30, uma medição isolada de CPU retornou 20,1% no PID Java 27995, mas a interface ainda pode mostrar CPU indisponível se a leitura pelo procfs falhar ou a versão nova não estiver instalada. Agora o watchdog tenta também a métrica do registro PM2 `minecraft` quando a leitura direta de CPU não produz valor; só aceita um registro online de `~/minecraft/start.sh` e o mesmo PID, quando identificado. A atualização atual não foi implantada nem validada no Android.
 
 No A30 existem alterações locais da migração Bom Dia em seis arquivos. Antes do pull, preserve-as; não aplique o stash automaticamente sobre a implementação integrada:
 
@@ -463,19 +461,16 @@ npm test
 
 Se houver alterações adicionais, preserve-as e revise antes do pull. O stash mantém uma cópia recuperável dos arquivos anteriores; não o apague antes de comparar. Código/dados e `desired.json` privados do bot, supervisor Tailscale e mundos ficam fora do repositório e não são substituídos pelo pull.
 
-Crie `~/services/homelab-control.env` com permissão 600, fora do Git. Preencha os valores reais da aplicação Cloudflare Access **do dashboard**, mantendo a política Access que já protege o hostname e `/api/services/*` (sem bypass). Os dados vêm de Zero Trust > Access > Applications e do domínio da equipe:
+Se já existe `~/services/homelab-control.env`, mantenha-o fora do Git e com permissão 600. O dashboard só precisa destas opções de controle, de acordo com o estado real dos serviços:
 
 ```sh
 export BOM_DIA_MANAGER='pm2'
-export CF_ACCESS_ISSUER='https://SUA-EQUIPE.cloudflareaccess.com'
-export CF_ACCESS_AUD='AUD-DA-APLICACAO-DO-DASHBOARD'
-export CONTROL_ADMIN_EMAILS='SEU-EMAIL-AUTORIZADO'
-export CONTROL_ORIGIN='https://HOSTNAME-DO-DASHBOARD'
+export CONTROL_ORIGIN='https://homelab.thsouza.eng.br'
 export MINECRAFT_CONTROL_ENABLED='0'
 export TAILSCALE_CONTROL_ENABLED='0'
 ```
 
-Os exemplos devem ser substituídos, não usados literalmente. O origin verifica assinatura RS256, issuer, audience, expiração e identidade administrativa; headers de e-mail sozinhos não autenticam. [Validação oficial do JWT Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+Cloudflare Access continua protegendo o hostname completo. O backend não pede uma segunda autenticação para os interruptores. Confirme que o túnel encaminha para `127.0.0.1:3000` e que a porta 3000 não é publicada diretamente. O origin do POST deve corresponder ao hostname HTTPS.
 
 ```sh
 chmod 600 ~/services/homelab-control.env
@@ -487,7 +482,7 @@ pm2 logs homelab-status --lines 30 --nostream
 pm2 logs homelab-watchdog --lines 30 --nostream
 ```
 
-Para atualizações apenas de código, preservando o ambiente já configurado: `pm2 restart homelab-status homelab-watchdog`. Sempre carregue o arquivo privado antes de reaplicar `ecosystem.config.cjs`; seus valores de segurança padrão bloqueiam os controles. Valide pelo navegador no hostname Access: sem sessão autorizada, controles devem permanecer bloqueados. Um `curl http://127.0.0.1:3000/api/services` sem JWT deve retornar 401 (ou 503 enquanto não configurado), nunca autorizar uma operação.
+Para atualizações apenas de código, preservando o ambiente já configurado: `pm2 restart homelab-status homelab-watchdog`. Sempre carregue o arquivo privado antes de reaplicar `ecosystem.config.cjs`. Valide pelo navegador no hostname Access: sem sessão autorizada, o site deve redirecionar ao login. Localmente, `curl http://127.0.0.1:3000/api/services` deve retornar o estado atual sem JWT; de fora do aparelho, o controle só deve estar acessível pelo hostname protegido.
 
 Após preparar Minecraft com o servidor encerrado normalmente conforme a seção anterior, altere somente `MINECRAFT_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. A chave pede confirmação antes de salvar e desconectar jogadores. Não mude a configuração do Minecraft em execução para contornar a validação.
 
@@ -515,12 +510,12 @@ pm2 save
 
 O launcher sai antes de criar filhos quando o estado está offline, ausente ou inválido. PM2 não reinicia saída 0. Após SIGINT/SIGTERM, o supervisor encerra apenas seu grupo de daemon e sai em 2,5 s; PM2 tem timeout de 4 s. Recuperação por falha da API só ocorre dentro do supervisor ativo e respeita intenção offline. A central valida o contrato do supervisor, o ID, script, interpretador e configuração antes de controlar; grava intenção atomicamente, executa start/stop nesse ID, salva PM2 e reconcilia apenas paradas. Nenhuma operação liga a VPN Android ou reinicia watchdog.
 
-Defina `TAILSCALE_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. Teste a chave pela conexão LAN/local, confira `pm2 status tailscale-userspace`, o estado de `desired.json` e `/api/health` após duas rodadas. Offline deve sobreviver à restauração/reboot. O painel pede confirmação da perda de conexões SSH antes de desligar userspace. Rollback do código, se necessário, exige restaurar o supervisor e sua configuração PM2 anterior pela LAN; preserve intenção offline durante o rollback.
+Defina `TAILSCALE_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. Teste a chave pelo hostname protegido e confira no Termux `pm2 status tailscale-userspace`, o estado de `desired.json` e `/api/health` após duas rodadas. Offline deve sobreviver à restauração/reboot. O painel pede confirmação da perda de conexões SSH antes de desligar userspace. Rollback do código, se necessário, exige restaurar o supervisor e sua configuração PM2 anterior pela LAN; preserve intenção offline durante o rollback.
 
 ### Limites e validação
 
-POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop. Origin HTTPS exato, Fetch Metadata, header próprio e JSON de até 1 KB protegem contra CSRF; não há CORS liberado. JWT é obrigatório até em acesso local. Há 120 consultas e 20 ações por minuto por instância da API, com resposta 429; um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
+POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop. Origin HTTPS exato, Fetch Metadata, header próprio e JSON de até 1 KB protegem contra CSRF; não há CORS liberado. Cloudflare Access protege o hostname e o Express/API de controle só aceitam conexão local do túnel. Há 120 consultas e 20 ações por minuto por instância da API, com resposta 429; um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
 
-Logs `[control]` registram serviço, ação, subject validado e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
+Logs `[control]` registram serviço, ação e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
 
-`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, autenticação/assinatura, CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. A medição isolada por SSH comprova a leitura de CPU no A30; implantação completa, credenciais Access e ciclos reais de start/stop/reboot permanecem pendentes.
+`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, origem/CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. Implantação completa e ciclos reais de start/stop/reboot no Android permanecem pendentes.

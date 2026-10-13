@@ -52,7 +52,7 @@ app.get('/api/health', async (req, res) => {
 });
 app.use('/api/services', createControlRouter({ controller, minecraft, tailscale }));
 app.use(express.static(path.join(__dirname, 'public')));
-const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => {
+const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => {
   console.log('TH HomeLab disponível na porta', server.address().port);
   refresh();
 });

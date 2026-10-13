@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { createMinecraftProbe } = require('../lib/minecraft');
+const { createMinecraftProbe, pm2MinecraftMetrics } = require('../lib/minecraft');
 const { createMonitor } = require('../lib/watchdog');
 async function fixture(t, extra = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cpu-proc-'));
@@ -62,4 +62,28 @@ test('permission failures, unknown Java, malformed stat and ambiguous candidates
   await fs.writeFile(path.join(f.root, '123/cmdline'), '/usr/bin/java\0-jar\0server.jar\0');
   await fs.cp(path.join(f.root, '123'), path.join(f.root, '456'), { recursive: true });
   assert.match((await raw()).cpuReason, /ambíguo/);
+});
+test('PM2 supplies CPU only for its registered Minecraft PID when procfs cannot provide a rate', async t => {
+  const f = await fixture(t);
+  const fallback = { pid: 123, cpuPercent: 24.5, rssBytes: 1048576 };
+  const probe = createMinecraftProbe({ ...f.opts, clockTicks: async () => null, pm2Metrics: async () => fallback });
+  const measured = (await probe()).process;
+  assert.equal(measured.cpuPercent, 24.5);
+  assert.equal(measured.cpuMethod, 'pm2-monitor');
+  assert.equal(measured.rssBytes, 1048576);
+  const unavailable = createMinecraftProbe({ ...f.opts, clockTicks: async () => null,
+    pm2Metrics: async () => ({ ...fallback, pid: 456 }) });
+  assert.equal((await unavailable()).process.cpuPercent, null);
+  const restricted = createMinecraftProbe({ ...f.opts, procRoot: path.join(f.root, 'missing'),
+    pm2Metrics: async () => fallback });
+  assert.equal((await restricted()).process.cpuPercent, 24.5);
+});
+test('PM2 CPU fallback only accepts one online process with the expected start script', async () => {
+  const entry = { name: 'minecraft', pid: 123, pm2_env: { status: 'online', pm_exec_path: path.join('/home/test', 'minecraft/start.sh') },
+    monit: { cpu: 20.1, memory: 500000000 } };
+  const metrics = list => pm2MinecraftMetrics({ home: '/home/test', run: async () => ({ ok: true, text: JSON.stringify(list) }) });
+  assert.equal((await metrics([entry])).cpuPercent, 20.1);
+  assert.equal(await metrics([entry, entry]), null);
+  assert.equal(await metrics([{ ...entry, pm2_env: { ...entry.pm2_env, pm_exec_path: '/tmp/start.sh' } }]), null);
+  assert.equal(await metrics([{ ...entry, pm2_env: { ...entry.pm2_env, status: 'stopped' } }]), null);
 });
