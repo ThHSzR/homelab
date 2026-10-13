@@ -353,7 +353,7 @@ As chaves de **Bom Dia** e **Minecraft** ficam ao lado do nome em seus cartões 
 
 ### Gerenciadores confirmados e limites
 
-Em consulta SSH ao A30 em 12/10/2026, Bom Dia foi confirmado no PM2 como `bom-dia`, launcher `~/services/bom-dia/start.sh`, código em `~/bom-dia`. A migração local anterior foi integrada à main; não criamos outro bot. Configure `BOM_DIA_MANAGER=pm2` no dashboard e watchdog para usar essa instalação. Sem esse campo o código continua compatível com o runit original; a escolha do gerenciador é explícita, nunca inferida pelo nome.
+Em consulta SSH ao A30 em 13/10/2026, Bom Dia foi confirmado no PM2 como `bom-dia`, launcher `~/services/bom-dia/start.sh`, código em `~/bom-dia`. O processo Node é único. O runit legado mantém o serviço cadastrado, mas tem marcador `down` e um guard `MANAGED_BY_PM2` que impede iniciar outro bot. Dashboard e watchdog usam PM2 por padrão; uma instalação que ainda usa runit deve definir `BOM_DIA_MANAGER=runit` explicitamente.
 
 Em modo runit, Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo, sem shell. Parar grava primeiro o arquivo runit `down`; iniciar remove esse arquivo. A intenção de parada persiste no reboot. A cada 15 segundos, o dashboard reconcilia um serviço ainda em execução com esse marcador, inclusive após falha entre persistência e comando. Iniciar depende da supervisão normal do runit; não há loop adicional de auto-start no dashboard. Online significa processo supervisionado em execução, não sucesso funcional da automação.
 
@@ -374,7 +374,7 @@ npm test
 pm2 status bom-dia
 ```
 
-3. Configure o gerenciador usado pelo Bom Dia. No A30 ele foi confirmado como PM2:
+3. Confira o gerenciador usado pelo Bom Dia. No A30 ele foi confirmado como PM2 e já é o padrão:
 
 ```js
 BOM_DIA_MANAGER: 'pm2',
