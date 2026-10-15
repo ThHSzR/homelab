@@ -58,7 +58,9 @@ test('local tunnel can read state without a second login; direct connections are
 test('POST requires exact origin, JSON, custom header and fixed service/action', async t => {
   let called = 0;
   const url = await serve(t, createControlRouter({ origin: 'https://home.example',
-    controller: { set: async () => { called++; return { state: 'offline' }; }, status: async () => ({}) } }));
+    controller: { set: async () => { called++; return { state: 'offline' }; }, status: async () => ({}) },
+    minecraft: { request: async () => { throw Object.assign(new Error('Controle Minecraft não habilitado.'), { status: 409 }); },
+      status: async () => ({ state: 'unknown', available: false }) } }));
   const headers = { Origin: 'https://home.example', 'Content-Type': 'application/json', 'X-Homelab-Control': '1', 'Sec-Fetch-Site': 'same-origin' };
   async function post(id, body = { action: 'stop' }, h = headers) { return fetch(url + '/' + id, { method: 'POST', headers: h, body: JSON.stringify(body) }); }
   assert.equal((await post('bom-dia', undefined, { ...headers, Origin: 'https://evil.example' })).status, 403);
