@@ -358,7 +358,7 @@ Em modo runit, Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo,
 
 Dashboard e recuperação do watchdog compartilham o diretório de lock `.homelab-control-lock` dentro do serviço. A recuperação confirma novamente a ausência de `down` dentro do lock. Após uma falha abrupta, o lock não é removido automaticamente: pare dashboard e watchdog, confirme que não existe operação em execução, inspecione o estado e só então remova o diretório vazio com `rmdir "$PREFIX/var/service/bom-dia/.homelab-control-lock"`. Rode somente uma instância do dashboard e mantenha ambos os processos na mesma versão.
 
-**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. A consulta SSH em 15/10/2026 confirmou Java diretamente no Termux, sem Debian/proot. Nesse dia, com o servidor parado, o registro PM2 foi migrado para `autorestart:false` e timeout de 120 s; RCON e o jogo foram ligados apenas a `127.0.0.1`, e o controle foi habilitado no arquivo privado do aparelho. Os requisitos e passos abaixo permanecem para reinstalação ou outro aparelho.
+**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. A consulta SSH em 15/10/2026 confirmou Java diretamente no Termux, sem Debian/proot. Após uma tentativa de habilitar o toggle nesse dia, o A30 foi restaurado à configuração anterior: `server-ip=` vazio, RCON desligado, PM2 com `autorestart:true` e `MINECRAFT_CONTROL_ENABLED='0'`. O servidor voltou a responder na porta 25565; o controle do Minecraft no painel permanece indisponível. Os passos abaixo descrevem uma configuração opcional futura e **não devem ser aplicados ao A30 sem confirmar o destino do túnel Playit e testar uma conexão externa**.
 
 ### Configuração de segurança e atualização no Android
 
@@ -395,7 +395,7 @@ pm2 status
 Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, acesso local, CSRF/origem e allowlist. A interface também é testada com serviços simulados: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
 
 
-### Minecraft: ligar pelo PM2 e desligar salvando o mundo
+### Minecraft: configuração opcional do controle pelo PM2
 
 Em modo PM2, Bom Dia valida um único registro `bom-dia` e o caminho de `start.sh`, grava `~/services/bom-dia/desired.json`, executa start/stop apenas no ID confirmado e salva a lista PM2. O launcher privado já instalado consulta esse estado antes de iniciar o bot; `pm2 start bom-dia` sozinho não substitui a intenção offline. O watchdog em modo PM2 apenas monitora, sem recuperação runit. O modo runit preserva o arquivo `down`.
 
