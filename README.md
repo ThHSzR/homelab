@@ -517,7 +517,7 @@ POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop. O
 
 Logs `[control]` registram serviço, ação e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
 
-`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, origem/CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. Implantação completa e ciclos reais de start/stop/reboot no Android permanecem pendentes.
+`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, origem/CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. Ciclos reais de start/stop/reboot no Android permanecem pendentes.
 
 ## Rede, dispositivos, portas, tráfego e logs
 
