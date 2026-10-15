@@ -358,7 +358,7 @@ Em modo runit, Bom Dia usa exclusivamente `sv -w 15 up/down` nesse caminho fixo,
 
 Dashboard e recuperação do watchdog compartilham o diretório de lock `.homelab-control-lock` dentro do serviço. A recuperação confirma novamente a ausência de `down` dentro do lock. Após uma falha abrupta, o lock não é removido automaticamente: pare dashboard e watchdog, confirme que não existe operação em execução, inspecione o estado e só então remova o diretório vazio com `rmdir "$PREFIX/var/service/bom-dia/.homelab-control-lock"`. Rode somente uma instância do dashboard e mantenha ambos os processos na mesma versão.
 
-**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. A consulta SSH em 12/10/2026 confirmou Java diretamente no Termux, sem Debian/proot para Minecraft. O registro atual ainda tem `autorestart:true` e timeout de 30 s: o controle recusa essa configuração e requer a preparação abaixo, incluindo RCON local. Veja os passos abaixo; ele continua bloqueado até concluir a preparação.
+**Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. A consulta SSH em 15/10/2026 confirmou Java diretamente no Termux, sem Debian/proot. Nesse dia, com o servidor parado, o registro PM2 foi migrado para `autorestart:false` e timeout de 120 s; RCON e o jogo foram ligados apenas a `127.0.0.1`, e o controle foi habilitado no arquivo privado do aparelho. Os requisitos e passos abaixo permanecem para reinstalação ou outro aparelho.
 
 ### Configuração de segurança e atualização no Android
 
@@ -390,7 +390,7 @@ pm2 save
 pm2 status
 ```
 
-5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `pm2 status bom-dia` (ou `sv status "$PREFIX/var/service/bom-dia"` no modo runit), aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Minecraft continuará bloqueado até configurar seu controle seguro abaixo.
+5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `pm2 status bom-dia` (ou `sv status "$PREFIX/var/service/bom-dia"` no modo runit), aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Em uma nova instalação, Minecraft fica bloqueado até configurar seu controle seguro abaixo.
 
 Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, acesso local, CSRF/origem e allowlist. A interface também é testada com serviços simulados: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
 
@@ -438,6 +438,8 @@ pm2 save
 ```
 
 **Fluxo do toggle:** POST retorna 202 e o navegador acompanha o estado pela API. Ligar inicia somente o ID PM2 validado, salva a lista PM2 e aguarda resposta do protocolo Minecraft por até 120 s. Desligar persiste a intenção offline em `~/minecraft/.homelab-desired.json`, autentica RCON exclusivamente em 127.0.0.1, envia apenas `save-all flush`, exige confirmação `Saved the game` e então envia `stop`. Aguarda o PID original sair naturalmente (até 120 s). Somente com o processo encerrado e a porta do jogo offline marca o registro PM2 como stopped e executa `pm2 save`. Não existe fallback para sinais/kill; falhas ficam no painel. Plugins que alterem a resposta de salvamento podem impedir a operação, preservando o processo.
+
+Se o PM2 apresentar `waiting restart` depois da saída natural do Java, o controle confirma que o PID e a porta do jogo estão offline antes de cancelar esse estado pendente com `pm2 stop` e persistir a lista. A reconciliação da intenção offline faz a mesma verificação após reinício do dashboard.
 
 Um lock exclusivo no diretório Minecraft impede comandos concorrentes; após interrupção abrupta deve ser inspecionado com ambos os processos de controle parados, seguindo o procedimento de lock do Bom Dia. Ao reiniciar a central, uma intenção offline é reconciliada pelo mesmo fluxo seguro se PM2 ressuscitou o servidor. Não há auto-start adicional nem recovery Minecraft. Falha ao salvar o estado PM2 é reportada; a intenção offline continua presente para reconciliação. Não execute comandos externos de restart ou altere o registro PM2 enquanto o dashboard estiver controlando esse servidor.
 

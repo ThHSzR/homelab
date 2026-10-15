@@ -23,7 +23,7 @@ async function fixture(t, overrides = {}) {
       if (args[0] === 'stop') { assert.equal(running, false); entry.pm2_env.status = 'stopped'; entry.pid = 0; }
       if (args[0] === 'start') { running = true; entry.pid = 123; entry.pm2_env.status = 'online'; }
       return { ok: true, text: '' };
-    }, send: async (_, action) => { calls.push(action); if (action === 'stop') { running = false; entry.pid = 0; entry.pm2_env.status = 'stopped'; } }, ...overrides };
+    }, send: async (_, action) => { calls.push(action); if (action === 'stop') { running = false; entry.pid = 0; entry.pm2_env.status = overrides.stopPm2Status || 'stopped'; } }, ...overrides };
   return { c: createMinecraftController(opts), dir, entry, calls, opts, setRunning: value => { running = value; } };
 }
 test('Minecraft saves before stop, waits for exit and persists PM2 only afterward', async t => {
@@ -37,6 +37,20 @@ test('Minecraft saves before stop, waits for exit and persists PM2 only afterwar
   await c.request('start'); await c.settled();
   assert.equal((await c.status()).state, 'online');
   assert.deepEqual(calls.slice(-2), ['start 4', 'save']);
+});
+
+test('Minecraft cancels PM2 waiting restart after Java exits naturally', async t => {
+  const { c, dir, entry, calls, opts } = await fixture(t, { stopPm2Status: 'waiting restart' });
+  await c.request('stop'); await c.settled();
+  assert.deepEqual(calls, ['save', 'stop', 'stop 4', 'save']);
+  assert.equal(entry.pm2_env.status, 'stopped');
+  assert.equal((await c.status()).state, 'offline');
+  entry.pm2_env.status = 'waiting restart'; calls.length = 0;
+  const reboot = createMinecraftController(opts);
+  await reboot.reconcile();
+  assert.deepEqual(calls, ['stop 4', 'save']);
+  assert.equal((await reboot.status()).state, 'offline');
+  assert.equal(JSON.parse(await fs.readFile(path.join(dir, '.homelab-desired.json'))).desired, 'offline');
 });
 test('RCON save failure never sends stop or PM2 kill and exposes no password', async t => {
   const { c, calls, dir } = await fixture(t, { send: async () => { throw new Error('secret password detail'); } });
