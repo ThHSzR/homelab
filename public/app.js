@@ -120,6 +120,16 @@ function render(data) {
   $('disk-bar').style.width = Math.min(100, Math.max(0, data.disk?.percent || 0)) + '%';
   $('battery').textContent = data.battery.available ? data.battery.percentage + '%' : 'Sem leitura';
   $('battery-detail').textContent = data.battery.available ? (data.battery.temperature ?? '—') + ' °C · ' + ({ CHARGING: 'Carregando', DISCHARGING: 'Em uso', FULL: 'Carga completa', NOT_CHARGING: 'Sem carregar' }[data.battery.status] || data.battery.status || '') : data.battery.reason;
+  $('power-summary').textContent = data.power?.available ? data.power.connection === 'unplugged' ?
+    'Sem carregador desde ' + new Date(data.power.changedAt).toLocaleString('pt-BR') :
+    'Carregador conectado · ' + (data.power.history?.length || 0) + ' mudança(s) registradas' :
+    'Estado do carregador indisponível';
+  const powerHistory = data.power?.history?.slice(-5).reverse() || [];
+  $('power-history').replaceChildren(...(powerHistory.length ? powerHistory.map(event => {
+    const detail = event.to === 'plugged' ? 'Energia voltou' : 'Energia caiu';
+    const elapsed = event.outageMs == null ? '' : ' · queda de ' + duration(event.outageMs / 1000);
+    return el('li', new Date(event.at).toLocaleString('pt-BR') + ' · ' + detail + elapsed);
+  }) : [el('li', 'Nenhuma mudança registrada ainda.') ]));
   $('tail-ip').textContent = data.tailscale.ip || 'Não detectado';
   $('tail-status').textContent = data.stale ? 'Leitura desatualizada' : data.tailscale.detected == null ? 'Interfaces Android indisponíveis' : data.tailscale.detected ? 'Interface ' + data.tailscale.interface + ' ativa · alcance remoto não verificado' : 'Nenhuma interface da rede privada detectada';
   const boot = data.persistence.lastRun;
@@ -161,7 +171,7 @@ async function modules() {
   } catch { $('module-list').textContent = 'Não foi possível carregar os módulos.'; }
 }
 $('refresh').addEventListener('click', () => { update(); modules(); });
-update(); modules(); setInterval(update, 15000);
+update(); modules(); setInterval(() => { if (document.visibilityState === 'visible') update(); }, 15000);
 renderDiagnostics();
 window.addEventListener('online', () => { recordDiagnostic('browser', { result: 'ONLINE', elapsedMs: 0 }); update(); health(); });
 window.addEventListener('offline', () => recordDiagnostic('browser', { result: 'OFFLINE', elapsedMs: 0 }));
@@ -171,7 +181,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { update(); health(); }
 });
 
-const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia', external: 'Conectividade externa', minecraft: 'Minecraft · Java' };
+const healthNames = { dashboard: 'Dashboard · :3000', ssh: 'SSH · :8022', 'bom-dia': 'Bom Dia',
+  external: 'Conectividade externa', minecraft: 'Minecraft · Java', playit: 'Playit · processo',
+  'cloudflare-tunnel': 'Cloudflare Tunnel · processo', 'public-dashboard': 'Dashboard · acesso público',
+  'minecraft-public': 'Minecraft · acesso publicado' };
 function renderHealthCards(data) {
   // Preserve card and switch identity on every watchdog refresh.
   for (const [id, name] of Object.entries(healthNames)) {
@@ -188,7 +201,8 @@ function renderHealthCards(data) {
     reading.replaceChildren(el('p', stale ? 'Sem leitura recente' : labels[s.status] || s.status, 'status ' + (stale ? 'unknown' : s.status)),
       el('p', s ? s.latencyMs + ' ms · duração da verificação' : 'Monitor indisponível'),
       ...(s?.manager ? [el('small', 'Gerenciado por ' + s.manager)] : []),
-      ...(s?.detail && id === 'bom-dia' ? [el('small', s.detail)] : []),
+      ...(s?.detail ? [el('small', s.detail)] : []),
+      ...(s?.expected ? [el('small', 'Estado desejado: ' + (s.expected === 'online' ? 'ligado' : 'desligado'))] : []),
       el('small', 'Última mudança: ' + (s?.changedAt ? new Date(s.changedAt).toLocaleString('pt-BR') : '—')),
       el('small', 'Visto online: ' + (s?.lastSeen ? new Date(s.lastSeen).toLocaleString('pt-BR') : 'Ainda não')));
     const recent = data?.history?.slice(-20) || [];
@@ -216,6 +230,29 @@ function renderHealthCards(data) {
     history.setAttribute('aria-label', 'Últimas ' + recent.length + ' verificações de ' + (id === 'tailscale' ? 'Tailscale Android' : 'Tailscale Termux'));
   }
 }
+function renderUptime(data) {
+  const days = data?.uptime?.days || {};
+  const ids = ['dashboard', 'ssh', 'bom-dia', 'minecraft', 'playit', 'cloudflare-tunnel'];
+  const today = new Date();
+  const keys = Array.from({ length: 7 }, (_, index) =>
+    new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - index)).toISOString().slice(0, 10));
+  const periodMs = Date.now() - Date.parse(keys.at(-1) + 'T00:00:00.000Z');
+  $('uptime-list').replaceChildren(...ids.map(id => {
+    const totals = keys.reduce((sum, day) => {
+      const row = days[day]?.[id];
+      for (const kind of ['online', 'offline', 'unknown']) sum[kind] += row?.[kind] || 0;
+      return sum;
+    }, { online: 0, offline: 0, unknown: 0 });
+    const observed = totals.online + totals.offline;
+    const item = el('div', '', 'uptime-item');
+    item.append(el('strong', healthNames[id] || id),
+      el('span', observed ? (100 * totals.online / observed).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% online no tempo observado' : 'Sem histórico'),
+      el('small', observed ? Math.round(observed / 3600000) + ' h observadas · cobertura ' +
+        Math.round(100 * observed / periodMs) + '% · ' + Math.round(totals.unknown / 60000) +
+        ' min sem leitura' : 'Aguardando medições'));
+    return item;
+  }));
+}
 async function health() {
   try {
     const response = await diagnosticFetch('/api/health', 'health');
@@ -223,6 +260,7 @@ async function health() {
     const data = await response.json();
     $('health-summary').textContent = data.stale ? 'Monitor sem leitura recente' : 'Última leitura: ' + new Date(data.timestamp).toLocaleTimeString('pt-BR');
     renderHealthCards(data);
+    renderUptime(data);
     latestHealth = data;
     renderInsights();
     renderMinecraft(data.services.minecraft, data.stale);
@@ -234,13 +272,14 @@ async function health() {
   } catch {
     $('health-summary').textContent = 'Monitor indisponível · dados anteriores podem estar desatualizados';
     renderHealthCards(null);
-    latestHealth = null;
+    renderUptime(null);
+    latestHealth = { stale: true };
     renderInsights();
     renderMinecraft(null, true);
   }
 }
 $('refresh').addEventListener('click', health);
-health(); setInterval(health, 15000);
+health(); setInterval(() => { if (document.visibilityState === 'visible') health(); }, 15000);
 
 function renderMinecraft(minecraft, stale) {
   if (!minecraft || stale) {
@@ -272,11 +311,12 @@ function renderMinecraft(minecraft, stale) {
 
 function renderInsights() {
   const { issues, complete, anyFresh } = getInsights(latestStatus, latestHealth);
+  const allReady = complete && window.homelabNetworkFresh === true;
   $('alerts-summary').textContent = issues.length ? issues.length + (issues.length === 1 ? ' sinal de atenção' : ' sinais de atenção') :
-    complete ? 'Tudo em ordem nas leituras recentes' : anyFresh ? 'Leituras parciais' : 'Aguardando leituras';
+    allReady ? 'Tudo em ordem nas leituras recentes' : anyFresh ? 'Leituras parciais' : 'Aguardando leituras';
   if (!issues.length) {
-    $('alerts-list').replaceChildren(el('p', complete ? 'Nenhum alerta nas leituras recentes.' :
-      'Aguardando dados recentes do dispositivo e do watchdog.', 'empty'));
+    $('alerts-list').replaceChildren(el('p', allReady ? 'Nenhum alerta nas leituras recentes.' :
+      'Aguardando dados recentes do dispositivo, watchdog e rede.', 'empty'));
     return;
   }
   $('alerts-list').replaceChildren(...issues.map(issue => {
@@ -288,6 +328,7 @@ function renderInsights() {
     return row;
   }));
 }
+window.addEventListener('homelab:network', renderInsights);
 
 
 // Controls are children of the existing cards, never a second service grid.
@@ -366,4 +407,23 @@ async function updateControls() {
     }
   } finally { controlsReading = false; }
 }
-updateControls(); setInterval(updateControls, 5000);
+let lastControlRead = 0;
+async function scheduledControls() {
+  if (document.visibilityState !== 'visible') return;
+  const active = [...controlCards.values()].some(entry => entry.busy || ['starting', 'stopping'].includes(entry.current));
+  if (!active && Date.now() - lastControlRead < 15000) return;
+  lastControlRead = Date.now();
+  await updateControls();
+}
+lastControlRead = Date.now(); updateControls(); setInterval(scheduledControls, 5000);
+function selectNavigation() {
+  const current = location.hash || '#overview';
+  document.querySelectorAll('nav a[href^="#"]').forEach(link => {
+    const selected = link.getAttribute('href') === current;
+    link.classList.toggle('selected', selected);
+    if (selected) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  });
+}
+window.addEventListener('hashchange', selectNavigation);
+selectNavigation();

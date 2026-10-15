@@ -14,13 +14,21 @@
   const rate = value => value == null ? 'Aguardando segunda amostra' : size(value) + '/s';
   function strip(target, history, key, unit, lossKey) {
     const values = (history || []).slice(-40);
+    let output = target.nextElementSibling;
+    if (!output?.classList.contains('chart-reading')) {
+      output = element('output', '', 'chart-reading');
+      target.after(output);
+    }
     const maximum = Math.max(1, ...values.map(row => row[key] || 0));
     target.replaceChildren(...values.map(row => {
-      const item = element('span', '', 'network-bar' + (lossKey && row[lossKey] > 0 ? ' lossy' : ''));
+      const item = element('button', '', 'network-bar' + (lossKey && row[lossKey] > 0 ? ' lossy' : ''));
+      item.type = 'button';
       const value = row[key];
       item.style.height = value == null ? '4px' : Math.max(5, Math.round(value / maximum * 52)) + 'px';
       item.title = time(row.timestamp) + ' · ' + (value == null ? 'sem leitura' : value.toLocaleString('pt-BR') + unit) +
         (lossKey && row[lossKey] != null ? ' · perda ' + row[lossKey] + '%' : '');
+      item.setAttribute('aria-label', item.title);
+      item.addEventListener('click', () => { output.textContent = item.title; });
       return item;
     }));
   }
@@ -88,9 +96,22 @@
     reading = true;
     try {
       const response = await fetch('/api/network', { cache: 'no-store', signal: AbortSignal.timeout(10000), redirect: 'error' });
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      render(await response.json());
-    } catch (error) { $('network-updated').textContent = 'Monitor de rede indisponível · ' + error.message; }
+      if (!response.ok) throw new Error(response.status === 403 ? 'abra pelo hostname protegido do Cloudflare Access' : 'HTTP ' + response.status);
+      const data = await response.json();
+      render(data);
+      window.homelabNetworkFresh = !data.stale && Date.now() - Date.parse(data.timestamp) <= 180000;
+      window.dispatchEvent(new Event('homelab:network'));
+    } catch (error) {
+      window.homelabNetworkFresh = false;
+      window.dispatchEvent(new Event('homelab:network'));
+      $('network-updated').textContent = 'Monitor de rede indisponível · ' + error.message;
+      $('network-overview').querySelectorAll('.network-state').forEach(node => {
+        node.textContent = 'Sem leitura'; node.className = 'network-state unknown';
+      });
+      $('ports-list').querySelectorAll('.network-state').forEach(node => {
+        node.textContent = 'Sem leitura'; node.className = 'network-state unknown';
+      });
+    }
     finally { reading = false; }
   }
   const names = { all: 'Todos os serviços', 'homelab-status': 'Dashboard', 'homelab-watchdog': 'Watchdog', 'bom-dia': 'Bom Dia',
@@ -114,7 +135,7 @@
   async function loadSources() {
     try {
       const response = await fetch('/api/logs/sources', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-      if (!response.ok) throw new Error('PM2 indisponível');
+      if (!response.ok) throw new Error(response.status === 403 ? 'Abra pelo hostname protegido do Cloudflare Access para ver logs.' : 'PM2 indisponível');
       const sources = await response.json();
       const all = element('option', names.all); all.value = 'all';
       $('log-service').replaceChildren(all, ...sources.filter(item => item.available).map(item => {

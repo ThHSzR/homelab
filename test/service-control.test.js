@@ -51,13 +51,15 @@ async function serve(t, router) {
 test('local tunnel can read state without a second login; direct connections are refused', async t => {
   const controller = { status: async () => ({ state: 'offline', available: true }) };
   const url = await serve(t, createControlRouter({ controller }));
-  assert.equal((await fetch(url)).status, 200);
+  assert.equal((await fetch(url)).status, 403);
+  const permitted = await serve(t, createControlRouter({ controller, authorize: (req, res, next) => next() }));
+  assert.equal((await fetch(permitted)).status, 200);
   const direct = await serve(t, createControlRouter({ controller, localOnly: () => false }));
   assert.equal((await fetch(direct)).status, 403);
 });
 test('POST requires exact origin, JSON, custom header and fixed service/action', async t => {
   let called = 0;
-  const url = await serve(t, createControlRouter({ origin: 'https://home.example',
+  const url = await serve(t, createControlRouter({ origin: 'https://home.example', authorize: (req, res, next) => next(),
     controller: { set: async () => { called++; return { state: 'offline' }; }, status: async () => ({}) },
     minecraft: { request: async () => { throw Object.assign(new Error('Controle Minecraft não habilitado.'), { status: 409 }); },
       status: async () => ({ state: 'unknown', available: false }) } }));
@@ -92,7 +94,7 @@ test('in-flight control reports transition and refuses another action until comp
 
 test('Minecraft uses the same-origin POST route, returns 202 and rejects injected commands', async t => {
   const actions = [];
-  const url = await serve(t, createControlRouter({ origin: 'https://home.example',
+  const url = await serve(t, createControlRouter({ origin: 'https://home.example', authorize: (req, res, next) => next(),
     controller: { status: async () => ({state:'offline'}) },
     minecraft: { status: async () => ({state:'starting',available:true}), request: async action => { actions.push(action); return {state:'starting',accepted:true}; } } }));
   const headers = { Origin:'https://home.example', 'Content-Type':'application/json', 'X-Homelab-Control':'1' };
@@ -105,7 +107,7 @@ test('Minecraft uses the same-origin POST route, returns 202 and rejects injecte
 
 test('userspace POST uses allowlist, rejects Android/watchdog, bounds bodies, rate limits and audits without request secrets', async t => {
   const events = [], actions = [];
-  const url = await serve(t, createControlRouter({
+  const url = await serve(t, createControlRouter({ authorize: (req, res, next) => next(),
     origin: 'https://home.example', actionLimit: 2, audit: event => events.push(event),
     tailscale: { set: async action => { actions.push(action); return { state: 'offline' }; } } }));
   const headers = { Origin: 'https://home.example', 'Content-Type': 'application/json', 'X-Homelab-Control': '1' };
@@ -119,7 +121,7 @@ test('userspace POST uses allowlist, rejects Android/watchdog, bounds bodies, ra
   assert.equal((await post('tailscale-userspace', '{"action":"start"}')).status, 429);
   assert.deepEqual(actions, ['stop', 'start']);
   assert.ok(events.every(event => !Object.hasOwn(event, 'subject') && !Object.hasOwn(event, 'body')));
-  const limited = await serve(t, createControlRouter({ requestLimit: 1,
+  const limited = await serve(t, createControlRouter({ requestLimit: 1, authorize: (req, res, next) => next(),
     controller: { status: async () => ({}) }, minecraft: { status: async () => ({}) }, tailscale: { status: async () => ({}) } }));
   assert.equal((await fetch(limited)).status, 200); assert.equal((await fetch(limited)).status, 429);
 });
@@ -127,7 +129,7 @@ test('userspace POST uses allowlist, rejects Android/watchdog, bounds bodies, ra
 test('API global operation lock blocks another service until Minecraft background operation settles', async t => {
   let release; const pending = new Promise(resolve => { release = resolve; });
   let called = 0;
-  const url = await serve(t, createControlRouter({ origin: 'https://home.example', audit: () => {},
+  const url = await serve(t, createControlRouter({ origin: 'https://home.example', audit: () => {}, authorize: (req, res, next) => next(),
     minecraft: { request: async () => ({ state: 'stopping' }), settled: () => pending, status: async () => ({ state: 'offline' }) },
     controller: { set: async () => { called++; return {}; } } }));
   const headers = { Origin: 'https://home.example', 'Content-Type': 'application/json', 'X-Homelab-Control': '1' };

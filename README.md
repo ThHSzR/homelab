@@ -14,11 +14,13 @@ Atualmente a central acompanha informações como:
 - uso de memória;
 - uso de armazenamento;
 - estado da bateria via Termux:API;
+- mudanças no carregador e duração das quedas de energia;
 - endereço e interface Tailscale;
 - serviços gerenciados pelo PM2;
 - estado do SSH;
 - persistência dos serviços após reinicialização;
 - módulos existentes e planejados do HomeLab.
+- alertas dentro do painel, histórico de disponibilidade e verificações dos túneis publicados.
 
 A interface visual segue a mesma identidade do meu portfólio, com tema escuro, detalhes em azul e componentes responsivos.
 
@@ -472,6 +474,14 @@ export TAILSCALE_CONTROL_ENABLED='0'
 ```
 
 Cloudflare Access continua protegendo o hostname completo. O backend não pede uma segunda autenticação para os interruptores. Confirme que o túnel encaminha para `127.0.0.1:3000` e que a porta 3000 não é publicada diretamente. O origin do POST deve corresponder ao hostname HTTPS.
+O backend agora valida o JWT enviado pelo Access em cada rota administrativa (`/api/services`, `/api/network` e `/api/logs`). Sem configuração válida, essas rotas retornam **403**. Antes de reiniciar a versão nova no A30, acrescente ao arquivo privado:
+
+```sh
+export ACCESS_TEAM_DOMAIN='SEU-TIME.cloudflareaccess.com'
+export ACCESS_AUD='AUD-da-aplicacao-homelab'
+```
+
+Copie o **Application Audience (AUD) Tag** em Zero Trust → Access controls → Applications → aplicação do HomeLab → Additional settings. Use o domínio exato do seu time Access, sem `https://`. Não coloque o AUD nem tokens em Git. O código busca as chaves públicas do Access e confere assinatura, emissor, audiência e validade; a leitura local direta da tailnet não ganha permissão administrativa só por alcançar a porta. O hostname do túnel deve preservar `Host: homelab.thsouza.eng.br`. Uma sessão Access válida no navegador fornece o cabeçalho ao origin; confirme com `/api/services` e `/api/network` no hostname público antes de considerar a migração concluída. [Validação de JWT no origin](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
 
 ```sh
 chmod 600 ~/services/homelab-control.env
@@ -483,7 +493,7 @@ pm2 logs homelab-status --lines 30 --nostream
 pm2 logs homelab-watchdog --lines 30 --nostream
 ```
 
-Para atualizações apenas de código, preservando o ambiente já configurado: `pm2 restart homelab-status homelab-watchdog`. Sempre carregue o arquivo privado antes de reaplicar `ecosystem.config.cjs`. Valide pelo navegador no hostname Access: sem sessão autorizada, o site deve redirecionar ao login. Localmente, `curl http://127.0.0.1:3000/api/services` deve retornar o estado atual sem JWT; de fora do aparelho, o controle só deve estar acessível pelo hostname protegido.
+Para atualizações apenas de código, preservando o ambiente já configurado: `pm2 restart homelab-status homelab-watchdog`. Sempre carregue o arquivo privado antes de reaplicar `ecosystem.config.cjs`. Valide pelo navegador no hostname Access: sem sessão autorizada, o site deve redirecionar ao login. No A30, `curl http://127.0.0.1:3000/api/services` deve retornar **403**; pelo hostname com uma sessão Access válida, deve retornar o estado dos serviços.
 
 Após preparar Minecraft com o servidor encerrado normalmente conforme a seção anterior, altere somente `MINECRAFT_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. A chave pede confirmação antes de salvar e desconectar jogadores. Não mude a configuração do Minecraft em execução para contornar a validação.
 
@@ -534,6 +544,18 @@ As portas verificadas são uma lista fixa: SSH Termux `8022`, dashboard `3000`, 
 O tráfego vem dos contadores `ip -j -s link show` das interfaces Wi-Fi, móveis e VPN visíveis. O painel mostra bytes acumulados e taxa recebida/enviada calculada entre amostras, descartando deltas negativos após reinício do contador. **Esses números incluem tráfego LAN e Internet.** No Android sem root, `/proc/net/dev` e a consulta de sockets por processo estão bloqueados neste A30; não é possível atribuir bytes com exatidão ao Minecraft, Playit ou Cloudflare. O painel informa essa limitação, em vez de inventar consumo por serviço.
 
 `GET /api/logs/sources`, `/api/logs/all` e `/api/logs/:service` leem apenas registros PM2 conhecidos: dashboard, watchdog, Bom Dia, Minecraft, Playit, Cloudflare Tunnel e Tailscale Termux. O modo **Todos os serviços** agrupa as últimas linhas por serviço, sem alegar ordem cronológica entre arquivos. Cada arquivo é validado dentro de `~/.pm2/logs` ou `~/services/logs`, limitado a 64 KB/160 linhas; a visão conjunta limita ainda mais cada fonte. Sequências ANSI e padrões comuns de token/senha são ocultados. Como logs livres podem conter dados não padronizados, mantenha Cloudflare Access protegendo o hostname inteiro. As rotas de leitura exigem conexão local do túnel, não aceitam caminho de arquivo e não têm CORS liberado.
+
+### Histórico, verificações públicas e retenção de logs
+
+O watchdog mantém até 30 dias de contadores diários online, offline e sem leitura, além das 500 transições mais recentes. O painel mostra sete dias, com a cobertura observada: uma coleta recém-instalada não aparece como 100% de sete dias. Uma pausa do monitor maior que 90 s é contabilizada como sem leitura. O arquivo `~/services/state/watchdog.json` é atualizado atomicamente. O histórico de alimentação fica em `~/services/state/power.json`, com até 200 mudanças e duração das interrupções observadas pelo Termux:API. Ele não mede quedas ocorridas enquanto o Android estava desligado.
+
+Playit e Cloudflare Tunnel são verificados como processos PM2 separados. A URL HTTPS pública e o endereço público do Minecraft têm probes adicionais; eles são executados **no próprio A30**, portanto não provam alcance a partir de outra rede. Para habilitar a verificação do Minecraft, configure `PLAYIT_PUBLIC_HOST` com o endereço usado pelos jogadores e, se a porta não vier de registro DNS SRV, `PLAYIT_PUBLIC_PORT`. Sem esses dados, o resultado é “sem confirmação”. Para a URL protegida pelo Access, crie um service token com política **Service Auth** na aplicação do dashboard e configure `CF_ACCESS_PROBE_ID` e `CF_ACCESS_PROBE_SECRET` no arquivo privado. O probe só usa o token para `/healthz`; não grava o segredo no snapshot. Sem ele, o estado público fica “sem confirmação”. [Service tokens do Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/).
+
+Os alertas são somente no dashboard: distinguem falha de três leituras seguidas, estado desconhecido, parada intencional, leitura antiga, falta de energia, bateria quente/baixa, armazenamento e memória do Minecraft. Não há envio externo. A interface pausa consultas regulares quando a aba fica oculta e retoma ao voltar; listas PM2 consultadas quase ao mesmo tempo compartilham uma leitura por dois segundos.
+
+Para limitar o uso de armazenamento pelos logs PM2 no A30, execute uma vez `bash deploy/setup-log-rotation.sh` como o usuário Termux que executa o PM2. O script instala `pm2-logrotate` se necessário e configura 5 MB por arquivo, cinco arquivos rotacionados por fonte, compressão e rotação diária. Confira `pm2 conf` e o espaço livre depois da instalação. O módulo também consome memória, então acompanhe o uso no A30. [Configuração do pm2-logrotate](https://github.com/keymetrics/pm2-logrotate).
+
+TPS/MSPT não é exibido nesta versão: o servidor no A30 permanece com RCON desligado após o rollback documentado e o protocolo de status Minecraft não informa essas métricas. Antes de integrá-las, é preciso escolher uma fonte confiável compatível com a versão/servidor em uso, confirmar o destino do Playit e testar sem alterar o mundo em produção.
 
 Para atualizar o A30, confirme antes que `git status --short` está vazio. Depois:
 

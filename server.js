@@ -1,25 +1,33 @@
 const express = require('express');
 const path = require('node:path');
 const { collect } = require('./lib/collectors');
+const { createPowerTracker } = require('./lib/power-events');
 const modules = require('./modules.json');
 const { readHealth } = require('./lib/watchdog');
 const { readNetwork } = require('./lib/network-monitor');
 const { listLogSources, readServiceLogs, readCombinedLogs } = require('./lib/logs');
-const { localConnection } = require('./lib/control-api');
+const { createAccessGuard } = require('./lib/access');
 const { createController } = require('./lib/service-control');
 const { createControlRouter } = require('./lib/control-api');
 const controller = createController();
 const { createMinecraftController } = require('./lib/minecraft-control');
 const minecraft = createMinecraftController();
 const tailscale = require('./lib/tailscale-control').createTailscaleController();
+const access = createAccessGuard();
 const app = express();
 app.disable('x-powered-by');
 let snapshot = null;
+const powerTracker = createPowerTracker();
 let collecting = false;
 async function refresh() {
   if (collecting) return;
   collecting = true;
-  try { snapshot = await collect(); }
+  try {
+    const current = await collect();
+    try { current.power = await powerTracker.update(current.battery); }
+    catch (error) { console.error('Falha no histórico de alimentação:', error.message); }
+    snapshot = current;
+  }
   catch (error) { console.error('Falha na coleta:', error.message); }
   finally { collecting = false; }
 }
@@ -54,9 +62,7 @@ app.get('/api/health', async (req, res) => {
   catch { res.status(503).json({ error: 'Watchdog aguardando primeira leitura ou estado indisponível' }); }
 });
 function localRead(req, res, next) {
-  res.set('Cache-Control', 'no-store');
-  if (!localConnection(req)) return res.status(403).json({ error: 'Dados disponíveis somente pelo túnel local.' });
-  next();
+  return access.middleware(req, res, next);
 }
 app.get('/api/network', localRead, async (req, res) => {
   try { res.json(await readNetwork()); }
@@ -74,7 +80,7 @@ app.get('/api/logs/:service', localRead, async (req, res) => {
   try { res.json(await readServiceLogs(req.params.service, req.query.stream || 'out')); }
   catch (error) { res.status(error.status || 503).json({ error: error.status ? error.message : 'Log indisponível.' }); }
 });
-app.use('/api/services', createControlRouter({ controller, minecraft, tailscale }));
+app.use('/api/services', createControlRouter({ controller, minecraft, tailscale, authorize: access.middleware }));
 app.use(express.static(path.join(__dirname, 'public')));
 const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => {
   console.log('TH HomeLab disponível na porta', server.address().port);
