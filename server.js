@@ -3,6 +3,9 @@ const path = require('node:path');
 const { collect } = require('./lib/collectors');
 const modules = require('./modules.json');
 const { readHealth } = require('./lib/watchdog');
+const { readNetwork } = require('./lib/network-monitor');
+const { listLogSources, readServiceLogs, readCombinedLogs } = require('./lib/logs');
+const { localConnection } = require('./lib/control-api');
 const { createController } = require('./lib/service-control');
 const { createControlRouter } = require('./lib/control-api');
 const controller = createController();
@@ -49,6 +52,27 @@ app.get('/api/health', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json(await readHealth()); }
   catch { res.status(503).json({ error: 'Watchdog aguardando primeira leitura ou estado indisponível' }); }
+});
+function localRead(req, res, next) {
+  res.set('Cache-Control', 'no-store');
+  if (!localConnection(req)) return res.status(403).json({ error: 'Dados disponíveis somente pelo túnel local.' });
+  next();
+}
+app.get('/api/network', localRead, async (req, res) => {
+  try { res.json(await readNetwork()); }
+  catch { res.status(503).json({ error: 'Monitor de rede aguardando primeira leitura.' }); }
+});
+app.get('/api/logs/sources', localRead, async (req, res) => {
+  try { res.json(await listLogSources()); }
+  catch { res.status(503).json({ error: 'PM2 indisponível.' }); }
+});
+app.get('/api/logs/all', localRead, async (req, res) => {
+  try { res.json(await readCombinedLogs(req.query.stream || 'out')); }
+  catch (error) { res.status(error.status || 503).json({ error: error.status ? error.message : 'Logs indisponíveis.' }); }
+});
+app.get('/api/logs/:service', localRead, async (req, res) => {
+  try { res.json(await readServiceLogs(req.params.service, req.query.stream || 'out')); }
+  catch (error) { res.status(error.status || 503).json({ error: error.status ? error.message : 'Log indisponível.' }); }
 });
 app.use('/api/services', createControlRouter({ controller, minecraft, tailscale }));
 app.use(express.static(path.join(__dirname, 'public')));

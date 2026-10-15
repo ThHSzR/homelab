@@ -239,7 +239,6 @@ O objetivo é evoluir esse dispositivo para uma central pessoal de infraestrutur
 
 Entre as próximas possibilidades estão:
 
-- monitoramento proativo da rede;
 - watchdog de serviços;
 - monitor de conectividade;
 - Wake-on-LAN;
@@ -519,3 +518,31 @@ POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop. O
 Logs `[control]` registram serviço, ação e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
 
 `npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, origem/CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. Implantação completa e ciclos reais de start/stop/reboot no Android permanecem pendentes.
+
+## Rede, dispositivos, portas, tráfego e logs
+
+O `homelab-watchdog` também coleta dados de rede a cada 60 segundos e grava `~/services/state/network.json` atomicamente. A API `GET /api/network` entrega a leitura e até 120 amostras de histórico (cerca de duas horas); uma amostra com mais de três minutos aparece como desatualizada. O monitor consulta a interface Wi-Fi privada, encontra o gateway pela rota efetiva, mede ping de três pacotes para gateway e `1.1.1.1`, resolve um nome DNS e verifica HTTPS. Esses resultados são independentes: falha do ping pode indicar bloqueio de ICMP, e uma resposta de um destino não prova disponibilidade de toda a Internet.
+
+A descoberta percorre no máximo 64 endereços por rodada, com até oito pings simultâneos, apenas na rede Wi-Fi privada `/24` do aparelho. Assim, uma `/24` inteira leva aproximadamente quatro rodadas; o painel distingue uma resposta atual de um dispositivo visto antes. A tabela mostra IP, nome reverso quando o DNS responde e MAC quando o Android fornece o vizinho em `ip neigh`. Um vizinho em cache, sozinho, não é marcado online. Em redes maiores que `/24`, a descoberta ativa fica pausada e as demais medições continuam. Não há rota para solicitar uma varredura ou alvo arbitrário pelo navegador.
+
+O fabricante do MAC só aparece se houver um arquivo local opcional `~/services/network-oui.json`, fora do Git, com prefixos hexadecimais de seis dígitos em maiúsculas, por exemplo `{ "AABBCC": "Fabricante" }`. Sem essa tabela, o painel mostra `—`; nenhum MAC é enviado a um serviço externo para identificação.
+
+As portas verificadas são uma lista fixa: SSH Termux `8022`, dashboard `3000`, Minecraft `25565`, HTTPS do dashboard público `443`, gateway `22/80/443` quando identificado e a API interna `/healthz`. A abertura TCP não confirma o protocolo de Minecraft nem autenticação SSH; as verificações existentes do watchdog complementam esse resultado.
+
+O tráfego vem dos contadores `ip -j -s link show` das interfaces Wi-Fi, móveis e VPN visíveis. O painel mostra bytes acumulados e taxa recebida/enviada calculada entre amostras, descartando deltas negativos após reinício do contador. **Esses números incluem tráfego LAN e Internet.** No Android sem root, `/proc/net/dev` e a consulta de sockets por processo estão bloqueados neste A30; não é possível atribuir bytes com exatidão ao Minecraft, Playit ou Cloudflare. O painel informa essa limitação, em vez de inventar consumo por serviço.
+
+`GET /api/logs/sources`, `/api/logs/all` e `/api/logs/:service` leem apenas registros PM2 conhecidos: dashboard, watchdog, Bom Dia, Minecraft, Playit, Cloudflare Tunnel e Tailscale Termux. O modo **Todos os serviços** agrupa as últimas linhas por serviço, sem alegar ordem cronológica entre arquivos. Cada arquivo é validado dentro de `~/.pm2/logs` ou `~/services/logs`, limitado a 64 KB/160 linhas; a visão conjunta limita ainda mais cada fonte. Sequências ANSI e padrões comuns de token/senha são ocultados. Como logs livres podem conter dados não padronizados, mantenha Cloudflare Access protegendo o hostname inteiro. As rotas de leitura exigem conexão local do túnel, não aceitam caminho de arquivo e não têm CORS liberado.
+
+Para atualizar o A30, confirme antes que `git status --short` está vazio. Depois:
+
+```sh
+cd ~/services/homelab
+git pull --ff-only origin main
+npm ci
+npm test
+. ~/services/homelab-control.env
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
+```
+
+Espere a primeira rodada do watchdog e confira `curl http://127.0.0.1:3000/api/network`. As interfaces e permissões podem mudar após reboot ou troca de Wi-Fi; ausência de dado aparece como indisponível. O monitor não modifica configuração de roteador, dispositivos ou serviços.

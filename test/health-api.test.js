@@ -69,6 +69,7 @@ test('health API returns 503 until first sample, then reports fresh and stale st
 
   const healthUrl = url + '/api/health';
   assert.equal((await fetch(healthUrl)).status, 503);
+  assert.equal((await fetch(url + '/api/network')).status, 503);
   await createMonitor({ dir, probes: { dashboard: async () => ({ status: 'online' }) } }).tick();
   const response = await fetch(healthUrl);
   assert.equal(response.status, 200);
@@ -77,4 +78,10 @@ test('health API returns 503 until first sample, then reports fresh and stale st
   await createMonitor({ dir, now: () => Date.now() - 120000, probes: {} }).tick();
   assert.equal((await (await fetch(healthUrl)).json()).stale, true);
   assert.equal((await fetch(url + '/')).status, 200);
+  await fs.writeFile(path.join(dir, 'network.json'), JSON.stringify({ timestamp: new Date().toISOString(), history: [], devices: [], traffic: [], ports: [] }));
+  const network = await fetch(url + '/api/network');
+  assert.equal(network.status, 200);
+  assert.equal(network.headers.get('cache-control'), 'no-store');
+  assert.equal((await network.json()).stale, false);
+  assert.equal((await fetch(url + '/api/logs/unknown')).status, 400);
 });
