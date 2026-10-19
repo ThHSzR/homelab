@@ -8,9 +8,7 @@ module.exports = { apps: [{ name: 'homelab-status', script: 'server.js', cwd: __
   error_file: path.join(os.homedir(), 'services/logs/homelab-status-error.log'),
   env: { NODE_ENV: 'production', PORT: '3000', HOST: '127.0.0.1',
     BOM_DIA_MANAGER: process.env.BOM_DIA_MANAGER || 'pm2',
-    CONTROL_ORIGIN: process.env.CONTROL_ORIGIN || 'https://homelab.thsouza.eng.br',
-    ACCESS_TEAM_DOMAIN: process.env.ACCESS_TEAM_DOMAIN || '',
-    ACCESS_AUD: process.env.ACCESS_AUD || '',
+   
     MINECRAFT_CONTROL_ENABLED: process.env.MINECRAFT_CONTROL_ENABLED || '0',
     TAILSCALE_CONTROL_ENABLED: process.env.TAILSCALE_CONTROL_ENABLED || '0' }
 }, { name: 'homelab-watchdog', script: 'watchdog.js', cwd: __dirname,
