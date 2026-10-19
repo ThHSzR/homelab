@@ -362,9 +362,9 @@ Dashboard e recuperação do watchdog compartilham o diretório de lock `.homela
 
 **Minecraft:** a [conversa de configuração](https://chatgpt.com/share/6ac94643-66ec-83e8-a902-422293b81392) registra Java diretamente no Termux, com `~/minecraft/start.sh` usando `exec`, e o processo PM2 `minecraft`. A consulta SSH em 15/10/2026 confirmou Java diretamente no Termux, sem Debian/proot. Após uma tentativa de habilitar o toggle nesse dia, o A30 foi restaurado à configuração anterior: `server-ip=` vazio, RCON desligado, PM2 com `autorestart:true` e `MINECRAFT_CONTROL_ENABLED='0'`. O servidor voltou a responder na porta 25565; o controle do Minecraft no painel permanece indisponível. Os passos abaixo descrevem uma configuração opcional futura e **não devem ser aplicados ao A30 sem confirmar o destino do túnel Playit e testar uma conexão externa**.
 
-### Configuração de segurança e atualização no Android
+### Cloudflare Access e atualização no Android
 
-1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. A autenticação ocorre nesse acesso ao site. O Express escuta somente em `127.0.0.1` e recusa conexões não locais à API de controle; configure a origem do Cloudflare Tunnel para `http://127.0.0.1:3000`. Não exponha a porta 3000 diretamente pela LAN ou tailnet.
+1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. A autenticação ocorre nesse acesso ao site. O Express escuta somente em `127.0.0.1`: configure a origem do Cloudflare Tunnel como `http://127.0.0.1:3000`. O próprio Express não exige outro login nem valida JWT. Acessos diretos pelo localhost não passam pelo Cloudflare Access; não exponha a porta 3000 na LAN, tailnet ou Internet.
 2. No Termux, atualize e instale as dependências (Node 22 ou superior):
 
 ```bash
@@ -378,11 +378,10 @@ pm2 status bom-dia
 3. Confira o gerenciador usado pelo Bom Dia. No A30 ele foi confirmado como PM2 e já é o padrão:
 
 ```js
-BOM_DIA_MANAGER: 'pm2',
-CONTROL_ORIGIN: 'https://homelab.thsouza.eng.br'
+BOM_DIA_MANAGER: 'pm2'
 ```
 
-`CONTROL_ORIGIN` já tem esse padrão; altere somente se mudar o hostname HTTPS. Não é preciso configurar uma segunda autenticação ou e-mail no backend. POST exige Origin exato, JSON e header específico; Fetch Metadata cross-site é recusado. Corpo aceita somente `{action: 'start' | 'stop'}`, limitado a 1 KB; não recebe caminhos, comandos ou senhas.
+Não existe mais configuração `CONTROL_ORIGIN`, `ACCESS_AUD` ou `ACCESS_TEAM_DOMAIN` para o Express. A autenticação acontece na Cloudflare. POST recebe JSON `{action:'start'|'stop'}` com até 1 KB, apenas para serviços predefinidos; não recebe comandos, caminhos ou senhas.
 
 4. Recarregue **dashboard e watchdog** e persista o PM2:
 
@@ -394,7 +393,7 @@ pm2 status
 
 5. Abra o dashboard pelo hostname protegido, autentique-se com o e-mail autorizado e teste Bom Dia. Confirme a parada com `pm2 status bom-dia` (ou `sv status "$PREFIX/var/service/bom-dia"` no modo runit), aguarde mais de uma rodada do watchdog e confira que continua parado. Reinicie Android para validar persistência. Em uma nova instalação, Minecraft fica bloqueado até configurar seu controle seguro abaixo.
 
-Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado, acesso local, CSRF/origem e allowlist. A interface também é testada com serviços simulados: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
+Testes cobrem persistência/reconciliação da parada, falhas do supervisor, bloqueio compartilhado e allowlist. A interface também é testada com serviços simulados: círculo desloca 26 px e cliques ficam bloqueados durante a operação. Isso não substitui a validação no aparelho.
 
 
 ### Minecraft: configuração opcional do controle pelo PM2
@@ -468,32 +467,23 @@ Se já existe `~/services/homelab-control.env`, mantenha-o fora do Git e com per
 
 ```sh
 export BOM_DIA_MANAGER='pm2'
-export CONTROL_ORIGIN='https://homelab.thsouza.eng.br'
 export MINECRAFT_CONTROL_ENABLED='0'
 export TAILSCALE_CONTROL_ENABLED='0'
 ```
 
-Cloudflare Access continua protegendo o hostname completo. O backend não pede uma segunda autenticação para os interruptores. Confirme que o túnel encaminha para `127.0.0.1:3000` e que a porta 3000 não é publicada diretamente. O origin do POST deve corresponder ao hostname HTTPS.
-O backend agora valida o JWT enviado pelo Access em cada rota administrativa (`/api/services`, `/api/network` e `/api/logs`). Sem configuração válida, essas rotas retornam **403**. Antes de reiniciar a versão nova no A30, acrescente ao arquivo privado:
+Cloudflare Access continua protegendo o hostname completo. O backend **não** pede JWT, AUD, validação de identidade, header administrativo ou login adicionais; `GET /api/services`, `/api/network` e `/api/logs` respondem normalmente depois que a requisição alcança o Express. Não existe mais `lib/access.js`.
+
+**Limite da arquitetura:** o Cloudflare Access protege apenas as requisições que atravessam a borda Cloudflare; `curl http://127.0.0.1:3000/api/services` pelo próprio Termux alcança o Express diretamente. Isso é intencional neste laboratório. Mantenha `HOST=127.0.0.1`, o túnel apontado para `http://127.0.0.1:3000` e nunca publique a porta de controle diretamente na LAN ou na Internet.
 
 ```sh
-export ACCESS_TEAM_DOMAIN='SEU-TIME.cloudflareaccess.com'
-export ACCESS_AUD='AUD-da-aplicacao-homelab'
-```
-
-Copie o **Application Audience (AUD) Tag** em Zero Trust → Access controls → Applications → aplicação do HomeLab → Additional settings. Use o domínio exato do seu time Access, sem `https://`. Não coloque o AUD nem tokens em Git. O código busca as chaves públicas do Access e confere assinatura, emissor, audiência e validade; a leitura local direta da tailnet não ganha permissão administrativa só por alcançar a porta. O hostname do túnel deve preservar `Host: homelab.thsouza.eng.br`. Uma sessão Access válida no navegador fornece o cabeçalho ao origin; confirme com `/api/services` e `/api/network` no hostname público antes de considerar a migração concluída. [Validação de JWT no origin](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
-
-```sh
-chmod 600 ~/services/homelab-control.env
-. ~/services/homelab-control.env
 cd ~/services/homelab
+[ ! -f "$HOME/services/homelab-control.env" ] || . "$HOME/services/homelab-control.env"
 pm2 startOrReload ecosystem.config.cjs --update-env
 pm2 save
 pm2 logs homelab-status --lines 30 --nostream
-pm2 logs homelab-watchdog --lines 30 --nostream
 ```
 
-Para atualizações apenas de código, preservando o ambiente já configurado: `pm2 restart homelab-status homelab-watchdog`. Sempre carregue o arquivo privado antes de reaplicar `ecosystem.config.cjs`. Valide pelo navegador no hostname Access: sem sessão autorizada, o site deve redirecionar ao login. No A30, `curl http://127.0.0.1:3000/api/services` deve retornar **403**; pelo hostname com uma sessão Access válida, deve retornar o estado dos serviços.
+Para testar, autentique-se em `https://homelab.thsouza.eng.br` e confira os cards Serviços, Rede, Logs e Telemetria. O site deve solicitar login pelo Cloudflare Access quando a sessão expirar; o Express não adiciona outra autenticação.
 
 Após preparar Minecraft com o servidor encerrado normalmente conforme a seção anterior, altere somente `MINECRAFT_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossistema do dashboard. A chave pede confirmação antes de salvar e desconectar jogadores. Não mude a configuração do Minecraft em execução para contornar a validação.
 
@@ -525,11 +515,11 @@ Defina `TAILSCALE_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossist
 
 ### Limites e validação
 
-POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop. Origin HTTPS exato, Fetch Metadata, header próprio e JSON de até 1 KB protegem contra CSRF; não há CORS liberado. Cloudflare Access protege o hostname e o Express/API de controle só aceitam conexão local do túnel. Há 120 consultas e 20 ações por minuto por instância da API, com resposta 429; um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
+POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop em JSON de até 1 KB. O Cloudflare Access é a única autenticação do painel; o Express permanece no loopback e não libera CORS. Não há rate limit nem verificação de identidade no Express. Um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
 
 Logs `[control]` registram serviço, ação e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
 
-`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists, origem/CSRF, limites, concorrência, PM2/RCON, persistência e CPU sob restrições Android. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. Ciclos reais de start/stop/reboot no Android permanecem pendentes.
+`npm test` cobre UI/DOM, confirmação, transições, falha do watchdog, allowlists de serviço e ação, concorrência, PM2/RCON, persistência, CPU sob restrições Android e parsing de telemetria. Os testes usam processos simulados e serviços de teste locais, não ligam/desligam serviços reais. Ciclos reais de start/stop/reboot no Android permanecem pendentes.
 
 ## Rede, dispositivos, portas, tráfego e logs
 
@@ -564,9 +554,25 @@ cd ~/services/homelab
 git pull --ff-only origin main
 npm ci
 npm test
-. ~/services/homelab-control.env
+[ ! -f "$HOME/services/homelab-control.env" ] || . "$HOME/services/homelab-control.env"
 pm2 startOrReload ecosystem.config.cjs --update-env
 pm2 save
 ```
 
 Espere a primeira rodada do watchdog e confira `curl http://127.0.0.1:3000/api/network`. As interfaces e permissões podem mudar após reboot ou troca de Wi-Fi; ausência de dado aparece como indisponível. O monitor não modifica configuração de roteador, dispositivos ou serviços.
+
+## Telemetria do dispositivo e interface simplificada
+
+A página inicial separa o resumo dos serviços, Minecraft/Tailscale, Rede e **Telemetria do sistema**. Os diagnósticos mais extensos ficam em painéis expansíveis (Rede avançada e Diagnósticos) para reduzir a poluição visual, sem perder dispositivos, portas, tráfego, logs, histórico e módulos.
+
+O objeto `system` de `GET /api/status` tenta coletar a cada 15 segundos, sem root:
+
+- **CPU geral e por núcleo** a partir de duas amostras de `/proc/stat`, incluindo frequência por núcleo de `/sys/devices/system/cpu/*/cpufreq/scaling_cur_freq` quando legível.
+- **RAM disponível, cache, buffers, ativa/inativa, slab, dirty e swap**, por `/proc/meminfo`. A visão geral considera `MemAvailable` quando disponível, em vez de chamar toda a memória em cache de ocupada.
+- **Pressão PSI** (`/proc/pressure/{cpu,memory,io}`) com médias de dez segundos, quando o kernel Android fornece a informação.
+- **Sensores térmicos** de `/sys/class/thermal/thermal_zone*`, até 32 zonas acessíveis, com temperaturas e tipos originais.
+- **Interfaces de rede**, bytes acumulados, pacotes, erros, descartes e taxas por segundo a partir de `/proc/net/dev`. A primeira amostra não calcula taxas.
+- **Wi-Fi do Termux:API** (SSID, sinal RSSI, velocidade e frequência quando disponíveis), com consulta a cada dois minutos para poupar bateria. Termux:API e permissão de localização podem ser necessários.
+- **Modelo, fabricante, versão Android, SDK, nome do dispositivo**, `getprop` com cache de uma hora, além de kernel, arquitetura, versão Node e quantidade de processos visíveis em `/proc`.
+
+Todas essas fontes estão sujeitas ao sandbox do Android e às permissões do fabricante. `null`, ausência de sensor e mensagem de indisponibilidade significam **sem leitura**, não zero, desligado ou CPU ociosa. A primeira amostra de CPU/fluxo não exibe porcentagem ou taxa inventada. Os coletores têm cache, limites de sensores e sondagens curtas para manter o Galaxy A30 utilizável com o Minecraft de 3 GB.
