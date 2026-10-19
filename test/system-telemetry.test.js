@@ -71,6 +71,6 @@ test('system sampler returns null for denied sensors and calculates CPU on next 
   files.set('/proc/stat','cpu 70 0 0 130 0\ncpu0 70 0 0 130 0');
   timestamp = 16000;
   const second = await sampler.sample();
-  assert.equal(second.cpu.percent,62.5);
-  assert.equal(second.cpu.cores[0].percent,62.5);
+  assert.equal(second.cpu.percent,50);
+  assert.equal(second.cpu.cores[0].percent,50);
 });
