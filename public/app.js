@@ -111,10 +111,12 @@ function render(data) {
   $('clock').textContent = new Date(data.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
   $('uptime').textContent = duration(data.uptimeSeconds);
   $('app-uptime').textContent = 'Central ativa há ' + duration(data.appUptimeSeconds);
-  const used = data.memory.totalBytes - data.memory.freeBytes;
+  const totalRam = data.system?.memory?.totalBytes || data.memory.totalBytes;
+  const availableRam = data.system?.memory?.availableBytes ?? data.memory.freeBytes;
+  const used = Math.max(0, totalRam - availableRam);
   $('memory').textContent = bytes(used);
-  $('memory-detail').textContent = bytes(data.memory.freeBytes) + ' livres de ' + bytes(data.memory.totalBytes);
-  $('memory-bar').style.width = Math.min(100, Math.max(0, used / data.memory.totalBytes * 100)) + '%';
+  $('memory-detail').textContent = bytes(availableRam) + ' disponíveis de ' + bytes(totalRam);
+  $('memory-bar').style.width = totalRam ? Math.min(100, Math.max(0, used / totalRam * 100)) + '%' : '0%';
   $('disk').textContent = data.disk ? data.disk.percent + '%' : 'Indisponível';
   $('disk-detail').textContent = data.disk ? bytes(data.disk.availableBytes) + ' livres de ' + bytes(data.disk.totalBytes) : 'Sem permissão para leitura';
   $('disk-bar').style.width = Math.min(100, Math.max(0, data.disk?.percent || 0)) + '%';
@@ -482,7 +484,7 @@ function renderSystem(system, stale) {
     coreList.replaceChildren(...(cores.length ? cores.map(core => {
       const row = el('div','','core-row');
       const track = el('div','','core-track');
-      const fill = el('i');
+      const fill = el('i', '');
       fill.style.width = (core.percent ?? 0) + '%';
       track.append(fill);
       row.append(el('span',core.core),track,el('strong',
