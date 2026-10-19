@@ -57,6 +57,10 @@ test('unknown Android permissions show unavailable and compact diagnostics can o
     device:{},memory:null,thermal:{sensors:[]},pressure:{},interfaces:[],
     wifi:{available:false,reason:'Termux:API sem permissão'}},false);
   assert.match(doc.querySelector('#system-highlights').textContent,/Termux:API sem permissão/);
+  assert.match(doc.querySelector('#system-highlights').textContent,/CPU DO SISTEMAIndisponível/);
+  assert.doesNotMatch(doc.querySelector('#system-highlights').textContent,/Aguardando 2ª amostra/);
+  w.renderSystem({cpu:{available:true,percent:null,cores:[]}},false);
+  assert.match(doc.querySelector('#system-highlights').textContent,/Aguardando 2ª amostra/);
   assert.match(doc.querySelector('#system-thermal').textContent,/Indisponíveis/);
   assert.equal(doc.querySelector('#advanced').open,false);
   w.location.hash='#devices';
@@ -64,4 +68,18 @@ test('unknown Android permissions show unavailable and compact diagnostics can o
   assert.equal(doc.querySelector('#advanced').open,true);
   assert.ok(doc.querySelector('#logs'));
   assert.ok(doc.querySelector('#terminal-launcher'));
+});
+
+test('missing optional system sensors preserve independently collected PM2 and battery readings', async t=>{
+  const w=await fixture(t), doc=w.document;
+  const processes=[{name:'minecraft',state:'online',memoryBytes:1048576,cpu:null,uptimeSeconds:60,restarts:0}];
+  const battery={available:true,percentage:81,temperature:35,health:'GOOD',status:'CHARGING',plugged:'AC'};
+  w.renderSystem(null,false,processes,battery);
+  assert.match(doc.querySelector('#system-pm2').textContent,/minecraft/);
+  assert.match(doc.querySelector('#system-pm2').textContent,/CPU —/);
+  assert.match(doc.querySelector('#system-battery').textContent,/81%/);
+  w.renderSystem(null,false,null,{available:false,reason:'Termux:API indisponível'});
+  assert.doesNotMatch(doc.querySelector('#system-pm2').textContent,/minecraft/);
+  assert.doesNotMatch(doc.querySelector('#system-battery').textContent,/81%/);
+  assert.match(doc.querySelector('#system-battery').textContent,/Termux:API indisponível/);
 });

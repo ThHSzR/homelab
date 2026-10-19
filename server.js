@@ -37,6 +37,7 @@ app.use((req, res, next) => {
   res.set('X-Homelab-Request-Id', requestId);
   res.set('X-Homelab-Server-Time', new Date().toISOString());
   if (req.path.startsWith('/api/')) {
+    res.set('Cache-Control', 'no-store');
     res.on('finish', () => {
       const cfRay = req.get('cf-ray') || '-';
       console.log('[http]', requestId, req.method, req.path, res.statusCode, (Date.now() - startedAt) + 'ms', 'cf-ray=' + cfRay);

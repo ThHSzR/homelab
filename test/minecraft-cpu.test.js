@@ -18,7 +18,7 @@ async function fixture(t, extra = {}) {
   await ticks(100);
   let time = 1000;
   const opts = { procRoot: root, now: () => time, clockTicks: async () => 100,
-    ping: async () => ({ status: 'online' }), ...extra };
+    ping: async () => ({ status: 'online' }), pm2Metrics: async () => null, ...extra };
   return { root, ticks, opts, probe: createMinecraftProbe(opts), advance: ms => { time += ms; } };
 }
 test('Android /proc/stat EACCES: process ticks and monotonic clock produce multi-core, idle and periodic rates', async t => {

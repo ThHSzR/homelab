@@ -453,6 +453,20 @@ function renderSystem(system, stale, processes, battery) {
   const updated = $('system-updated');
   const highlights = $('system-highlights');
   if (!updated || !highlights) return;
+  // PM2 and battery have independent collectors; a denied system sensor must
+  // not hide their readings or leave values from an earlier request behind.
+  systemRows('system-pm2', Array.isArray(processes) && processes.length ? processes.flatMap(p => [
+    [p.name + ' · estado',p.state],
+    [p.name + ' · uso',metricBytes(p.memoryBytes) + ' · CPU ' +
+      (Number.isFinite(p.cpu) ? p.cpu.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '—')],
+    [p.name + ' · uptime/reinícios',duration(p.uptimeSeconds) + ' · ' + (p.restarts ?? '—') + ' reinício(s)']
+  ]) : [['PM2','Indisponível ou sem processos cadastrados']]);
+  systemRows('system-battery', battery?.available ? [
+    ['Capacidade',battery.percentage == null ? 'Indisponível' : battery.percentage + '%'],
+    ['Temperatura',battery.temperature == null ? 'Indisponível' : battery.temperature + ' °C'],
+    ['Estado',battery.status || 'Indisponível'],['Saúde',battery.health || 'Não informado'],
+    ['Fonte',battery.plugged || 'Não informada']
+  ] : [['Termux:API',battery?.reason || 'Bateria indisponível']]);
   if (!system) {
     updated.textContent = 'Aguardando telemetria · Termux pode limitar leituras';
     highlights.replaceChildren(...['CPU','SWAP','WI-FI'].map(name => {
@@ -460,16 +474,17 @@ function renderSystem(system, stale, processes, battery) {
       tile.append(el('small', name), el('strong','Sem leitura'));
       return tile;
     }));
-    for (const id of ['system-cores','system-memory','system-thermal','system-pressure','system-device','system-ifaces','system-pm2','system-battery'])
+    for (const id of ['system-cores','system-memory','system-thermal','system-pressure','system-device','system-ifaces'])
       if ($(id)) $(id).textContent = 'Sem leitura disponível neste momento.';
     return;
   }
   updated.textContent = (stale ? 'Leitura desatualizada · ' : 'Atualizado às ') +
     new Date(system.timestamp).toLocaleTimeString('pt-BR');
   const cpu = system.cpu || {}, mem = system.memory || {}, wifi = system.wifi || {};
+  const cpuAvailable = cpu.available ?? (Number.isFinite(cpu.percent) || !!cpu.cores?.length);
   const percent = n => Number.isFinite(n) ? n.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : 'Aguardando 2ª amostra';
   const tiles = [
-    ['CPU DO SISTEMA', percent(cpu.percent), (cpu.count || 0) + ' núcleo(s) visíveis'],
+    ['CPU DO SISTEMA', cpuAvailable ? percent(cpu.percent) : 'Indisponível', (cpu.count || 0) + ' núcleo(s) visíveis'],
     ['SWAP', mem.swapTotalBytes == null ? 'Indisponível' : metricBytes(mem.swapUsedBytes),
       mem.swapTotalBytes == null ? 'Leitura bloqueada pelo Android' : 'de ' + metricBytes(mem.swapTotalBytes)],
     ['WI-FI', wifi.available ? (wifi.ssid || 'Conectado') : 'Sem leitura',
@@ -529,18 +544,6 @@ function renderSystem(system, stale, processes, battery) {
     [item.name + ' · erros/descarte',item.rxErrors + '/' + item.rxDrops + ' RX · ' +
       item.txErrors + '/' + item.txDrops + ' TX']
   ]) : [['Interfaces','Sem leitura disponível de /proc/net/dev']]);
-  systemRows('system-pm2', Array.isArray(processes) && processes.length ? processes.flatMap(p => [
-    [p.name + ' · estado',p.state],
-    [p.name + ' · uso',metricBytes(p.memoryBytes) + ' · CPU ' +
-      (p.cpu == null ? '—' : percent(p.cpu))],
-    [p.name + ' · uptime/reinícios',duration(p.uptimeSeconds) + ' · ' + (p.restarts ?? '—') + ' reinício(s)']
-  ]) : [['PM2','Indisponível ou sem processos cadastrados']]);
-  systemRows('system-battery', battery?.available ? [
-    ['Capacidade',battery.percentage == null ? 'Indisponível' : battery.percentage + '%'],
-    ['Temperatura',battery.temperature == null ? 'Indisponível' : battery.temperature + ' °C'],
-    ['Estado',battery.status || 'Indisponível'],['Saúde',battery.health || 'Não informado'],
-    ['Fonte',battery.plugged || 'Não informada']
-  ] : [['Termux:API',battery?.reason || 'Bateria indisponível']]);
 }
 
 // Opening a navigation item in a collapsed diagnostic group reveals the actual section.

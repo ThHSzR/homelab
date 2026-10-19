@@ -47,7 +47,7 @@ test('process usage needs two samples and ignores unrelated Java processes', asy
   await fs.writeFile(path.join(root, 'stat'), 'cpu  1000 0 0 0\n');
   let time = 0;
   const probe = createMinecraftProbe({ procRoot: root, now: () => time, clockTicks: async () => 100, totalMemory: () => 1024 * 1024 * 1024,
-    ping: async () => ({ status: 'online', detail: 'Minecraft confirmado' }) });
+    ping: async () => ({ status: 'online', detail: 'Minecraft confirmado' }), pm2Metrics: async () => null });
   let result = await probe();
   assert.equal(result.process.pid, 123);
   assert.equal(result.process.rssBytes, 204800 * 1024);
@@ -63,7 +63,8 @@ test('process usage needs two samples and ignores unrelated Java processes', asy
 });
 test('inaccessible process listing keeps the port result and does not invent resource use', async () => {
   const probe = createMinecraftProbe({ procRoot: path.join(os.tmpdir(), 'missing-minecraft-proc'),
-    ping: async () => ({ status: 'offline', detail: 'Sem resposta' }) });
+    ping: async () => ({ status: 'offline', detail: 'Sem resposta' }),
+    clockTicks: async () => null, pm2Metrics: async () => null });
   const result = await probe();
   assert.equal(result.status, 'offline');
   assert.equal(result.process, null);

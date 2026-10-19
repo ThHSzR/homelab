@@ -28,7 +28,11 @@ test('health API returns 503 until first sample, then reports fresh and stale st
   const url = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', WATCHDOG_STATE_DIR: dir },
+    // The integration server must never reconcile production PM2/runit intent
+    // or read private state, even when npm test runs directly in Termux.
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', WATCHDOG_STATE_DIR: dir,
+      HOME: dir, USERPROFILE: dir, PREFIX: path.join(dir, 'usr'), PM2_HOME: path.join(dir, '.pm2'),
+      BOM_DIA_MANAGER: 'pm2', MINECRAFT_CONTROL_ENABLED: '0', TAILSCALE_CONTROL_ENABLED: '0' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stdout = '', stderr = '', startupError = null, exitDetail = null;
@@ -69,7 +73,10 @@ test('health API returns 503 until first sample, then reports fresh and stale st
 
   const healthUrl = url + '/api/health';
   assert.equal((await fetch(healthUrl)).status, 503);
-  assert.equal((await fetch(url + '/api/network')).status, 403);
+  const missingNetwork = await fetch(url + '/api/network');
+  assert.equal(missingNetwork.status, 503);
+  assert.equal(missingNetwork.headers.get('cache-control'), 'no-store');
+  assert.match((await missingNetwork.json()).error, /primeira leitura/);
   await createMonitor({ dir, probes: { dashboard: async () => ({ status: 'online' }) } }).tick();
   const response = await fetch(healthUrl);
   assert.equal(response.status, 200);
@@ -78,10 +85,14 @@ test('health API returns 503 until first sample, then reports fresh and stale st
   await createMonitor({ dir, now: () => Date.now() - 120000, probes: {} }).tick();
   assert.equal((await (await fetch(healthUrl)).json()).stale, true);
   assert.equal((await fetch(url + '/')).status, 200);
-  await fs.writeFile(path.join(dir, 'network.json'), JSON.stringify({ timestamp: new Date().toISOString(), history: [], devices: [], traffic: [], ports: [] }));
+  const sample = { timestamp: new Date().toISOString(), history: [], devices: [], traffic: [], ports: [] };
+  await fs.writeFile(path.join(dir, 'network.json'), JSON.stringify(sample));
   const network = await fetch(url + '/api/network');
-  assert.equal(network.status, 403);
+  assert.equal(network.status, 200);
   assert.equal(network.headers.get('cache-control'), 'no-store');
-  assert.match((await network.json()).error, /Cloudflare Access/);
-  assert.equal((await fetch(url + '/api/logs/unknown')).status, 403);
+  assert.deepEqual(await network.json(), { ...sample, stale: false });
+  const unknownLog = await fetch(url + '/api/logs/unknown');
+  assert.equal(unknownLog.status, 400);
+  assert.equal(unknownLog.headers.get('cache-control'), 'no-store');
+  assert.match((await unknownLog.json()).error, /inválido/);
 });

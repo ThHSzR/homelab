@@ -49,6 +49,46 @@ test('Termux Wi-Fi data is optional and parse failures are explicit', () => {
   assert.equal(wifi.frequencyMhz, 5180);
 });
 
+test('restricted and empty Android responses never invent temperature or Wi-Fi connectivity', () => {
+  for (const value of [null, undefined, '', ' \n', 'permission denied'])
+    assert.equal(parseThermal('cpu', value, 'thermal_zone0'), null);
+  assert.equal(parseThermal('cpu', '0', 'thermal_zone0').celsius, 0);
+  for (const value of [{ error: 'Permission denied' }, {}, { ssid: '<unknown ssid>', rssi: -127 }])
+    assert.equal(parseWifi(JSON.stringify(value)).available, false);
+});
+
+test('denied directory listings keep readable RAM and device telemetry without inventing a process count', async () => {
+  const sampler = createSystemSampler({ termux:false,
+    fsRead: async p => p === '/proc/meminfo' ? 'MemTotal: 1000 kB\nMemAvailable: 500 kB' : null,
+    fsList: async () => { throw Object.assign(new Error('denied'), { code: 'EACCES' }); }
+  });
+  const value = await sampler.sample();
+  assert.equal(value.memory.availableBytes, 500 * 1024);
+  assert.equal(value.device.visibleProcesses, null);
+  assert.equal(value.cpu.available, false);
+  assert.equal(value.thermal.available, false);
+  assert.deepEqual(value.thermal.sensors, []);
+});
+
+test('CPU and interface counters require a new baseline after a denied or empty cycle', async () => {
+  let time = 1000, readable = true, ticks = 10, bytes = 100;
+  const sampler = createSystemSampler({ termux:false, clock:()=>time, fsList:async()=>[],
+    fsRead:async p => !readable ? null : p === '/proc/stat' ? `cpu ${ticks} 0 0 90 0` :
+      p === '/proc/net/dev' ? `Inter-|\nface | bytes\nwlan0: ${bytes} 0 0 0 0 0 0 0 ${bytes} 0 0 0 0 0 0 0` : null
+  });
+  await sampler.sample();
+  time += 1000; readable = false;
+  assert.equal((await sampler.sample()).cpu.available, false);
+  time += 1000; readable = true; ticks = 30; bytes = 300;
+  const resumed = await sampler.sample();
+  assert.equal(resumed.cpu.percent, null);
+  assert.equal(resumed.interfaces[0].rxPerSecond, null);
+  time += 1000; ticks = 50; bytes = 500;
+  const next = await sampler.sample();
+  assert.equal(next.cpu.percent, 100);
+  assert.equal(next.interfaces[0].rxPerSecond, 200);
+});
+
 test('system sampler returns null for denied sensors and calculates CPU on next cycle', async () => {
   const files = new Map([
     ['/proc/stat','cpu 20 0 0 80 0\ncpu0 20 0 0 80 0'],
