@@ -460,6 +460,8 @@ function renderSystem(system, stale) {
       tile.append(el('small', name), el('strong','Sem leitura'));
       return tile;
     }));
+    for (const id of ['system-cores','system-memory','system-thermal','system-pressure','system-device','system-ifaces'])
+      if ($(id)) $(id).textContent = 'Sem leitura disponível neste momento.';
     return;
   }
   updated.textContent = (stale ? 'Leitura desatualizada · ' : 'Atualizado às ') +
