@@ -137,7 +137,7 @@ function render(data) {
   const boot = data.persistence.lastRun;
   $('boot-state').textContent = data.persistence.bootScriptRanThisBoot ? 'Script executado neste boot' : 'Teste de reboot pendente';
   $('boot-detail').textContent = boot ? 'Última execução: ' + new Date(boot.timestamp).toLocaleString('pt-BR') + (boot.source === 'manual-test' ? ' · teste manual' : '') : 'Aguardando primeira execução do script';
-  renderSystem(data.system, !!data.stale);
+  renderSystem(data.system, !!data.stale, data.processes, data.battery);
 }
 let busy = false;
 async function update() {
@@ -449,7 +449,7 @@ function systemRows(target, values) {
   node.classList.add('system-list');
   node.replaceChildren(...values.map(([label, value]) => systemRow(label,value)));
 }
-function renderSystem(system, stale) {
+function renderSystem(system, stale, processes, battery) {
   const updated = $('system-updated');
   const highlights = $('system-highlights');
   if (!updated || !highlights) return;
@@ -460,7 +460,7 @@ function renderSystem(system, stale) {
       tile.append(el('small', name), el('strong','Sem leitura'));
       return tile;
     }));
-    for (const id of ['system-cores','system-memory','system-thermal','system-pressure','system-device','system-ifaces'])
+    for (const id of ['system-cores','system-memory','system-thermal','system-pressure','system-device','system-ifaces','system-pm2','system-battery'])
       if ($(id)) $(id).textContent = 'Sem leitura disponível neste momento.';
     return;
   }
@@ -529,6 +529,18 @@ function renderSystem(system, stale) {
     [item.name + ' · erros/descarte',item.rxErrors + '/' + item.rxDrops + ' RX · ' +
       item.txErrors + '/' + item.txDrops + ' TX']
   ]) : [['Interfaces','Sem leitura disponível de /proc/net/dev']]);
+  systemRows('system-pm2', Array.isArray(processes) && processes.length ? processes.flatMap(p => [
+    [p.name + ' · estado',p.state],
+    [p.name + ' · uso',metricBytes(p.memoryBytes) + ' · CPU ' +
+      (p.cpu == null ? '—' : percent(p.cpu))],
+    [p.name + ' · uptime/reinícios',duration(p.uptimeSeconds) + ' · ' + (p.restarts ?? '—') + ' reinício(s)']
+  ]) : [['PM2','Indisponível ou sem processos cadastrados']]);
+  systemRows('system-battery', battery?.available ? [
+    ['Capacidade',battery.percentage == null ? 'Indisponível' : battery.percentage + '%'],
+    ['Temperatura',battery.temperature == null ? 'Indisponível' : battery.temperature + ' °C'],
+    ['Estado',battery.status || 'Indisponível'],['Saúde',battery.health || 'Não informado'],
+    ['Fonte',battery.plugged || 'Não informada']
+  ] : [['Termux:API',battery?.reason || 'Bateria indisponível']]);
 }
 
 // Opening a navigation item in a collapsed diagnostic group reveals the actual section.
