@@ -67,7 +67,7 @@ test('Minecraft stop requires confirmation, operation prevents competing clicks 
   d.querySelector('#health-card-bom-dia [role=switch]').click(); mc.click(); await flush();
   assert.equal(f.posts.length, 1);
   assert.deepEqual(JSON.parse(f.posts[0].opts.body), { action: 'stop' });
-  assert.equal(f.posts[0].opts.headers['X-Homelab-Control'], '1');
+  assert.equal(f.posts[0].opts.headers['Content-Type'], 'application/json');
   f.fail(); f.release(); await flush();
   assert.match(d.querySelector('#health-card-minecraft .control-error').textContent, /Falha PM2/);
 });
