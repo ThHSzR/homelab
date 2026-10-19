@@ -367,7 +367,7 @@ for (const [id, name, parent] of [['bom-dia', 'Bom Dia', 'health-card-bom-dia'],
     state.textContent = action === 'start' ? 'Ligando…' : 'Desligando…'; error.textContent = '';
     try {
       const response = await fetch('/api/services/' + id, { method: 'POST', headers: {
-        'Content-Type': 'application/json', 'X-Homelab-Control': '1'
+        'Content-Type': 'application/json'
       }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(65000), redirect: 'error' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Falha ao controlar o serviço.');
