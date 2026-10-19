@@ -710,3 +710,66 @@ footer b { margin: 0 8px; color: rgba(0,124,255,.72); }
 @media (max-width: 1120px) { .network-overview { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 760px) { .ports-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .traffic-grid { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .network-overview, .ports-grid { grid-template-columns: 1fr; } }
+
+
+/* 2026 telemetry-first dashboard: concise primary navigation, expandable diagnostics. */
+.nav-more { margin: 3px 0; border: 1px solid var(--line); border-radius: 13px; }
+.nav-more summary { display: flex; justify-content: space-between; gap: 8px; padding: 11px 14px;
+  cursor: pointer; color: var(--muted); font-size: .73rem; font-weight: 750; letter-spacing: .06em;
+  text-transform: uppercase; list-style: none; }
+.nav-more summary::-webkit-details-marker { display: none; }
+.nav-more a { margin: 3px 6px; padding: 8px 12px; min-height: 36px; }
+.nav-more[open] summary { color: #fff; }
+.metrics { grid-template-columns: repeat(4,minmax(0,1fr)); }
+#system, #services, #minecraft, #network { scroll-margin-top: 26px; }
+.system-highlights { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.telemetry-tile { min-height: 112px; display: flex; flex-direction: column; justify-content: center;
+  gap: 10px; padding: 20px; border: 1px solid var(--line-strong); border-radius: 14px;
+  background: linear-gradient(145deg,rgba(0,124,255,.085),rgba(255,255,255,.018)); }
+.telemetry-tile small { color: var(--muted); font-size: .68rem; letter-spacing: .07em; }
+.telemetry-tile strong { font-size: clamp(1.2rem,2.8vw,1.65rem); font-weight: 650; letter-spacing: -.03em; }
+.telemetry-tile .telemetry-sub { margin: 0; color: var(--muted-soft); font-size: .72rem; }
+.telemetry-details { margin-top: 16px; }
+.telemetry-details > summary, .advanced-group > summary {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  min-height: 64px; padding: 17px 20px; list-style: none; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: 14px;
+  background: rgba(255,255,255,.035); color: #fff; font-weight: 650;
+}
+.telemetry-details > summary::-webkit-details-marker, .advanced-group > summary::-webkit-details-marker { display: none; }
+.telemetry-details[open] > summary, .advanced-group[open] > summary {
+  border-color: rgba(0,124,255,.36); background: rgba(0,124,255,.08);
+}
+.disclosure-icon { color: #93c5fd; font-size: 1.3rem; transition: transform .2s; }
+details[open] > summary .disclosure-icon { transform: rotate(180deg); }
+.system-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; padding-top: 16px; }
+.system-panel { min-width: 0; padding: 20px; }
+.system-panel h3 { margin: 0 0 16px; font-size: .97rem; font-weight: 650; color: #fff; }
+.system-list { display: grid; gap: 7px; }
+.system-line { display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .76rem; }
+.system-line span { min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
+.system-line strong { min-width: 0; overflow-wrap: anywhere; text-align: right; color: #e2e8f0; font-size: .75rem; }
+.core-row { display: grid; grid-template-columns: 58px 1fr auto; gap: 10px; align-items: center;
+  padding: 7px 0; font-size: .72rem; color: var(--muted); }
+.core-track { height: 7px; overflow: hidden; border-radius: 8px; background: rgba(255,255,255,.08); }
+.core-track > i { display: block; height: 100%; background: linear-gradient(90deg,#0c73dd,#77c6ff); }
+.advanced-group { margin-top: 20px; scroll-margin-top: 22px; }
+.advanced-group > summary strong { display: block; font-size: .92rem; }
+.advanced-group > summary small { display: block; font-size: .71rem; margin-top: 3px; font-weight: 400; }
+.advanced-content { padding: 2px 0 10px; }
+.advanced-content > section { scroll-margin-top: 20px; }
+.advanced-content .section-title { margin-top: 28px; }
+@media (max-width: 1000px) { .system-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+ .nav-more { flex: 0 0 auto; align-self: center; position: relative; }
+ .nav-more summary { padding: 8px 12px; white-space: nowrap; font-size: .64rem; }
+ .nav-more[open] a { position: relative; display: flex; min-width: 135px; background: #0c1222; z-index: 25; }
+ .system-highlights { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+ .telemetry-tile { min-height: 105px; padding: 12px; }
+ .telemetry-tile strong { font-size: 1.1rem; }
+}
+@media (max-width: 520px) {
+ .system-highlights { grid-template-columns: 1fr; }
+ .telemetry-tile { min-height: 80px; }
+}
