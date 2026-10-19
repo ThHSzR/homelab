@@ -545,7 +545,7 @@ Os alertas são somente no dashboard: distinguem falha de três leituras seguida
 
 Para limitar o uso de armazenamento pelos logs PM2 no A30, execute uma vez `bash deploy/setup-log-rotation.sh` como o usuário Termux que executa o PM2. O script instala `pm2-logrotate` se necessário e configura 5 MB por arquivo, cinco arquivos rotacionados por fonte, compressão e rotação diária. Confira `pm2 conf` e o espaço livre depois da instalação. O módulo também consome memória, então acompanhe o uso no A30. [Configuração do pm2-logrotate](https://github.com/keymetrics/pm2-logrotate).
 
-TPS/MSPT não é exibido nesta versão: o servidor no A30 permanece com RCON desligado após o rollback documentado e o protocolo de status Minecraft não informa essas métricas. Antes de integrá-las, é preciso escolher uma fonte confiável compatível com a versão/servidor em uso, confirmar o destino do Playit e testar sem alterar o mundo em produção.
+TPS/MSPT não é exibido nesta versão: o protocolo de status Minecraft não informa essas métricas. A disponibilidade do controle por RCON é independente e pode ser consultada em `/api/services`. Antes de integrar TPS/MSPT, é preciso escolher uma fonte confiável compatível com a versão/servidor em uso, confirmar o destino do Playit e testar sem alterar o mundo em produção.
 
 Para atualizar o A30, confirme antes que `git status --short` está vazio. Depois:
 
@@ -576,3 +576,5 @@ O objeto `system` de `GET /api/status` tenta coletar a cada 15 segundos, sem roo
 - **Modelo, fabricante, versão Android, SDK, nome do dispositivo**, `getprop` com cache de uma hora, além de kernel, arquitetura, versão Node e quantidade de processos visíveis em `/proc`.
 
 Todas essas fontes estão sujeitas ao sandbox do Android e às permissões do fabricante. `null`, ausência de sensor e mensagem de indisponibilidade significam **sem leitura**, não zero, desligado ou CPU ociosa. A primeira amostra de CPU/fluxo não exibe porcentagem ou taxa inventada. Os coletores têm cache, limites de sensores e sondagens curtas para manter o Galaxy A30 utilizável com o Minecraft de 3 GB.
+
+Auditoria, causas das falhas de teste, correções e validação real no Termux: [relatório de 18/10/2026](docs/validacao-2026-10-18.md).
