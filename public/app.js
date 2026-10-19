@@ -135,6 +135,7 @@ function render(data) {
   const boot = data.persistence.lastRun;
   $('boot-state').textContent = data.persistence.bootScriptRanThisBoot ? 'Script executado neste boot' : 'Teste de reboot pendente';
   $('boot-detail').textContent = boot ? 'Última execução: ' + new Date(boot.timestamp).toLocaleString('pt-BR') + (boot.source === 'manual-test' ? ' · teste manual' : '') : 'Aguardando primeira execução do script';
+  renderSystem(data.system, !!data.stale);
 }
 let busy = false;
 async function update() {
@@ -427,3 +428,114 @@ function selectNavigation() {
 }
 window.addEventListener('hashchange', selectNavigation);
 selectNavigation();
+
+function metricBytes(value) {
+  if (!Number.isFinite(value) || value < 0) return 'Indisponível';
+  const units = ['B','KB','MB','GB','TB'];
+  let n = value, unit = 0;
+  while (n >= 1024 && unit < units.length - 1) { n /= 1024; unit++; }
+  return n.toLocaleString('pt-BR', { maximumFractionDigits: n >= 10 ? 1 : 2 }) + ' ' + units[unit];
+}
+function systemRow(label, value) {
+  const line = el('div', '', 'system-line');
+  line.append(el('span', label), el('strong', String(value ?? 'Indisponível')));
+  return line;
+}
+function systemRows(target, values) {
+  const node = $(target);
+  if (!node) return;
+  node.classList.add('system-list');
+  node.replaceChildren(...values.map(([label, value]) => systemRow(label,value)));
+}
+function renderSystem(system, stale) {
+  const updated = $('system-updated');
+  const highlights = $('system-highlights');
+  if (!updated || !highlights) return;
+  if (!system) {
+    updated.textContent = 'Aguardando telemetria · Termux pode limitar leituras';
+    highlights.replaceChildren(...['CPU','SWAP','WI-FI'].map(name => {
+      const tile = el('article','','telemetry-tile');
+      tile.append(el('small', name), el('strong','Sem leitura'));
+      return tile;
+    }));
+    return;
+  }
+  updated.textContent = (stale ? 'Leitura desatualizada · ' : 'Atualizado às ') +
+    new Date(system.timestamp).toLocaleTimeString('pt-BR');
+  const cpu = system.cpu || {}, mem = system.memory || {}, wifi = system.wifi || {};
+  const percent = n => Number.isFinite(n) ? n.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : 'Aguardando 2ª amostra';
+  const tiles = [
+    ['CPU DO SISTEMA', percent(cpu.percent), (cpu.count || 0) + ' núcleo(s) visíveis'],
+    ['SWAP', mem.swapTotalBytes == null ? 'Indisponível' : metricBytes(mem.swapUsedBytes),
+      mem.swapTotalBytes == null ? 'Leitura bloqueada pelo Android' : 'de ' + metricBytes(mem.swapTotalBytes)],
+    ['WI-FI', wifi.available ? (wifi.ssid || 'Conectado') : 'Sem leitura',
+      wifi.available ? (wifi.rssi == null ? 'Sinal não informado' : wifi.rssi + ' dBm') : (wifi.reason || 'Termux:API indisponível')]
+  ];
+  highlights.replaceChildren(...tiles.map(([label, value, detail]) => {
+    const card = el('article','','telemetry-tile');
+    card.append(el('small',label),el('strong',value),el('p',detail,'telemetry-sub'));
+    return card;
+  }));
+  const coreList = $('system-cores');
+  if (coreList) {
+    const cores = cpu.cores || [];
+    coreList.replaceChildren(...(cores.length ? cores.map(core => {
+      const row = el('div','','core-row');
+      const track = el('div','','core-track');
+      const fill = el('i');
+      fill.style.width = (core.percent ?? 0) + '%';
+      track.append(fill);
+      row.append(el('span',core.core),track,el('strong',
+        (core.percent == null ? '—' : percent(core.percent)) +
+        (core.frequencyMhz == null ? '' : ' · ' + core.frequencyMhz + ' MHz')));
+      return row;
+    }) : [el('p','O Android não expôs os contadores /proc/stat.','empty')]));
+  }
+  systemRows('system-memory', [
+    ['RAM total', metricBytes(mem.totalBytes)], ['RAM disponível', metricBytes(mem.availableBytes)],
+    ['Cache', metricBytes(mem.cachedBytes)], ['Buffers', metricBytes(mem.buffersBytes)],
+    ['RAM ativa', metricBytes(mem.activeBytes)], ['RAM inativa', metricBytes(mem.inactiveBytes)],
+    ['Slab do kernel', metricBytes(mem.slabBytes)], ['Páginas sujas', metricBytes(mem.dirtyBytes)],
+    ['Swap utilizado', metricBytes(mem.swapUsedBytes)], ['Swap total', metricBytes(mem.swapTotalBytes)]
+  ]);
+  const sensors = system.thermal?.sensors || [];
+  systemRows('system-thermal', sensors.length ? sensors.map(item => [
+    item.type + ' · ' + item.sensor, item.celsius.toLocaleString('pt-BR') + ' °C'
+  ]) : [['Sensores','Indisponíveis neste Android sem permissões extras']]);
+  const pressure = system.pressure || {};
+  const psi = name => pressure[name]?.some?.avg10 == null ? 'Não disponível' :
+    percent(pressure[name].some.avg10) + ' de espera (10 s)' +
+    (pressure[name].full?.avg10 == null ? '' : ' · total ' + percent(pressure[name].full.avg10));
+  systemRows('system-pressure', [
+    ['CPU', psi('cpu')], ['Memória',psi('memory')], ['Disco / I/O', psi('io')]
+  ]);
+  const d = system.device || {};
+  systemRows('system-device', [
+    ['Fabricante',d.manufacturer], ['Modelo',d.model],
+    ['Versão Android',d.android], ['API Android',d.sdk],
+    ['Codinome',d.device], ['Arquitetura',d.architecture],
+    ['Kernel',d.kernel], ['Node.js',d.node],
+    ['Hostname',d.hostname], ['Processos visíveis',d.visibleProcesses]
+  ]);
+  const interfaces = system.interfaces || [];
+  const rate = v => v == null ? 'Aguardando 2ª amostra' : metricBytes(v) + '/s';
+  systemRows('system-ifaces', interfaces.length ? interfaces.flatMap(item => [
+    [item.name + ' · RX',rate(item.rxPerSecond) + ' · ' + metricBytes(item.rxBytes)],
+    [item.name + ' · TX',rate(item.txPerSecond) + ' · ' + metricBytes(item.txBytes)],
+    [item.name + ' · erros/descarte',item.rxErrors + '/' + item.rxDrops + ' RX · ' +
+      item.txErrors + '/' + item.txDrops + ' TX']
+  ]) : [['Interfaces','Sem leitura disponível de /proc/net/dev']]);
+}
+
+// Opening a navigation item in a collapsed diagnostic group reveals the actual section.
+function revealDashboardSection() {
+  const id = location.hash?.slice(1);
+  if (!id) return;
+  const target = document.getElementById(id);
+  if (!target) return;
+  if (target.tagName === 'DETAILS') target.open = true;
+  for (let parent = target.parentElement; parent; parent = parent.parentElement)
+    if (parent.tagName === 'DETAILS') parent.open = true;
+}
+window.addEventListener('hashchange', revealDashboardSection);
+revealDashboardSection();
