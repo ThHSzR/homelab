@@ -243,7 +243,7 @@ Entre as próximas possibilidades estão:
 
 - watchdog de serviços;
 - monitor de conectividade;
-- Wake-on-LAN;
+- integrações de Wake-on-LAN com widgets e assistentes;
 - MQTT e automações IoT;
 - monitor de energia;
 - integração com outros dispositivos da rede;
@@ -578,3 +578,58 @@ O objeto `system` de `GET /api/status` tenta coletar a cada 15 segundos, sem roo
 Todas essas fontes estão sujeitas ao sandbox do Android e às permissões do fabricante. `null`, ausência de sensor e mensagem de indisponibilidade significam **sem leitura**, não zero, desligado ou CPU ociosa. A primeira amostra de CPU/fluxo não exibe porcentagem ou taxa inventada. Os coletores têm cache, limites de sensores e sondagens curtas para manter o Galaxy A30 utilizável com o Minecraft de 3 GB.
 
 Auditoria, causas das falhas de teste, correções e validação real no Termux: [relatório de 18/10/2026](docs/validacao-2026-10-18.md).
+
+
+## Wake-on-LAN do desktop (thiago-pc)
+
+O cartão **Desktop · Wake-on-LAN** na página inicial envia um Magic Packet a partir do Galaxy A30 (Termux), diretamente à LAN do desktop. Não é necessário abrir uma porta UDP no roteador, adicionar outro processo PM2 ou instalar uma dependência Node. O Express permanece em 127.0.0.1, atrás do Cloudflare Access já existente.
+
+### Pré-requisitos
+
+1. Desktop com placa **Ethernet cabeada** conectada à mesma LAN/VLAN do Wi-Fi do Galaxy A30, sem isolamento de clientes/bloqueio de broadcasts. O Tailscale não transporta o broadcast ao PC; é o A30 que o envia na LAN.
+2. Na BIOS/UEFI, habilite **Wake on LAN / Power On by PCI-E**; no Windows, habilite **Wake on Magic Packet** na placa Ethernet. Para ligar após desligamento, verifique compatibilidade do hardware, as opções de energia da NIC e Inicialização Rápida.
+3. Encontre a MAC da placa **Ethernet física** no Windows, e opcionalmente reserve o IP do desktop no DHCP. Não use a MAC Tailscale.
+4. No A30, confira a interface Wi-Fi, normalmente wlan0, com o comando abaixo. O broadcast é calculado a partir do IPv4 local e máscara.
+
+No Windows (PowerShell):
+
+    Get-NetAdapter | Select-Object Name, Status, MacAddress
+
+No Termux:
+
+    ip -br -4 addr
+    cd ~/services/homelab
+    export WOL_DESKTOP_MAC="MAC-ETHERNET-REAL-DO-PC"
+    export WOL_DESKTOP_IP="IPV4-REAL-DO-PC"
+    export WOL_INTERFACE="wlan0"
+    # Opcional: export WOL_PORT="9"
+    pm2 startOrReload ecosystem.config.cjs --update-env
+    pm2 save
+
+Substitua os exemplos por valores reais antes de executar. **WOL_DESKTOP_MAC** é obrigatório. **WOL_DESKTOP_IP** é opcional e usado apenas para consultar o estado via ping; ICMP bloqueado resulta em estado não confirmado. **WOL_INTERFACE** padrão: wlan0. **WOL_PORT** padrão: UDP 9. **WOL_BROADCAST** opcional, quando informado, deve ser igual ao broadcast calculado para a interface selecionada. O botão fica desabilitado até que MAC e interface LAN estejam válidos.
+
+Os valores são repassados pelo ecosystem.config.cjs para o processo homelab-status e persistidos por pm2 save, não são gravados no GitHub. Não faça commit de credenciais nem de informações privadas.
+
+### Endpoints e interpretação
+
+| Rota | Resposta |
+| --- | --- |
+| GET /api/devices/desktop/status | ready, reason, interface e estado (online, unverified ou unknown) |
+| POST /api/devices/desktop/wake | HTTP 202 após enviar o pacote UDP broadcast |
+| POST repetido em menos de 10 segundos | HTTP 429; envio concorrente: HTTP 409 |
+
+As rotas usam exclusivamente o alvo fixado nas variáveis do servidor, sem aceitar MAC/IP do solicitante. A autenticação permanece na camada **Cloudflare Access**, como o restante do dashboard. Não publique esse endpoint fora do Access.
+
+**HTTP 202 significa Magic Packet enviado, não desktop ligado.** Apenas ping respondido apresenta **Ligado · ping confirmado**. Falha no ping significa **Não foi possível confirmar**; não garante que o desktop esteja desligado. Sem IP configurado o estado permanece desconhecido.
+
+### Teste rápido
+
+    curl -s http://127.0.0.1:3000/api/devices/desktop/status
+    curl -i -X POST http://127.0.0.1:3000/api/devices/desktop/wake
+    npm test
+
+Teste tanto em suspensão quanto depois de desligamento, pois o comportamento depende do hardware/firmware e alimentação da NIC.
+
+### Atalho Android, IFTTT e Alexa
+
+O cartão funciona remotamente no dashboard protegido pelo Access. É possível criar um atalho Android para o dashboard ou usar HTTP Shortcuts com um POST autenticado. IFTTT Webhooks exigiria integração separada e autenticação específica para serviço (sem expor chaves no frontend); não foi habilitado automaticamente. A Alexa e a skill RemoteRelay também são integrações opcionais futuras.
