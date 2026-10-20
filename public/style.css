@@ -773,3 +773,26 @@ details[open] > summary .disclosure-icon { transform: rotate(180deg); }
  .system-highlights { grid-template-columns: 1fr; }
  .telemetry-tile { min-height: 80px; }
 }
+
+
+/* Desktop WOL: one explicit action, distinct from reversible service toggles. */
+.wol-card { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
+.wol-info { flex: 1; min-width: 0; }
+.wol-info h3 { margin: 8px 0 6px; font-size: 1.25rem; }
+.wol-info p { margin: 8px 0; color: var(--muted); font-size: .83rem; }
+.wol-info small { display: block; color: var(--muted-soft); overflow-wrap: anywhere; }
+.wol-state.online { color: var(--green); }
+.wol-state.unknown { color: var(--text); }
+.wol-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+.wol-actions button { min-height: 44px; white-space: nowrap; }
+.wol-actions button:disabled { opacity: .48; cursor: not-allowed; }
+.wol-actions button:disabled:hover { transform: none; }
+.wol-actions .wol-secondary { background: rgba(116,157,210,.12); border-color: var(--line-strong); color: var(--text); }
+.wol-info .wol-result { color: #bfdbfe; font-weight: 600; }
+.wol-info .wol-result.success { color: var(--green); }
+.wol-info .wol-result.error { color: #ff9d9d; }
+@media (max-width: 760px) {
+  .wol-card { align-items: stretch; flex-direction: column; }
+  .wol-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .wol-actions button { white-space: normal; }
+}
