@@ -4,5 +4,6 @@
   { "id": "logs", "name": "Logs centralizados", "state": "active", "description": "Saídas limitadas do PM2, Minecraft, Playit e Cloudflare" },
   { "id": "bom-dia", "name": "Bom Dia", "state": "active", "description": "Estado e controle pelo PM2, com intenção persistida" },
   { "id": "minecraft", "name": "Minecraft", "state": "existing", "description": "Estado, jogadores, CPU, memória e porta monitorados" },
-  { "id": "alerts", "name": "Avisos no painel", "state": "active", "description": "Bateria, alimentação, recursos e falhas de serviços esperados" }
+  { "id": "alerts", "name": "Avisos no painel", "state": "active", "description": "Bateria, alimentação, recursos e falhas de serviços esperados" },
+  { "id": "wol", "name": "Wake-on-LAN", "state": "active", "description": "Botão para ligar o desktop pela rede local, configurável no PM2" }
 ]
