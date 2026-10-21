@@ -1,94 +1,88 @@
 # A30 Remoto
 
-Cliente para acessar a tela do Galaxy A30 pelo SSH na Tailnet, usando scrcpy e
-um gateway ADB central no Termux. Depois do provisionamento único, cada novo
-computador precisa somente de acesso à Tailnet e de uma chave SSH autorizada:
-não é necessário estar com o telefone em mãos, usar USB ou aceitar outra
-solicitação ADB no Android.
+Tela do Galaxy A30 por scrcpy e SSH na Tailnet, com gateway ADB central no Termux. Os scripts de instalação ficam neste diretório e acompanham a `main`. Não é necessário gerar ou baixar um pacote do HomeLab.
 
-> A Release `a30-remote-v1.0.0` usa o fluxo antigo, que autorizava o ADB em cada
-> computador. A correção do gateway central está na `main`; gere novos
-> instaladores a partir dela até a publicação da próxima Release.
+[Instruções](LEIA-ME.txt) · [Arquitetura e segurança](ARQUITETURA.md) · [Validação](VALIDACAO.md)
 
-[Instruções completas](LEIA-ME.txt) · [Arquitetura e segurança](ARQUITETURA.md) · [Validação](VALIDACAO.md)
+## Dependências
 
-## Arquitetura
+Linux: Bash, OpenSSH Client, Python 3, ADB e **scrcpy >= 2**, com sessão gráfica para abrir a tela. Instale pelo gerenciador da distribuição. Em Ubuntu/Debian que ofereça scrcpy >= 2:
 
-```text
-scrcpy/adb no computador
-  | SSH criptografado pela Tailnet
-  +-- porta ADB local -> socket Unix privado no Termux
-  +-- porta de vídeo local -> Termux -> socket scrcpy no Android
-                                      |
-                             Galaxy A30 (adbd)
+```bash
+sudo apt update
+sudo apt install adb scrcpy openssh-client python3 curl
+scrcpy --version
 ```
 
-A identidade ADB autorizada e o servidor ADB ficam somente no Termux. Cada
-computador tem uma chave SSH própria e revogável. O protocolo do servidor ADB
-não é publicado em uma porta TCP da LAN ou da Tailnet.
+Se o repositório da distribuição oferecer scrcpy 1.x, atualize pelo gerenciador de pacotes antes de instalar. O instalador interrompe sem alterar a instalação quando falta uma dependência.
+
+Windows 10/11 x64: Git Bash, OpenSSH Client, .NET Framework 4.5+ e scrcpy >= 2/ADB no PATH. Para instalar scrcpy pelo WinGet, no PowerShell:
+
+```powershell
+winget install --exact --id Genymobile.scrcpy
+```
+
+Reabra o Git Bash e confira `adb.exe version` e `scrcpy.exe --version`. Conecte a máquina à mesma Tailnet do A30.
+
+## Instalar diretamente por Bash
+
+Por clone, no Linux ou Git Bash do Windows:
+
+```bash
+git clone --branch main https://github.com/ThHSzR/homelab.git
+cd homelab
+bash tools/a30-remote/install.sh --check
+bash tools/a30-remote/install.sh
+```
+
+Ou baixe o instalador raw e execute apenas se o download concluir:
+
+```bash
+curl -fL --retry 2 https://raw.githubusercontent.com/ThHSzR/homelab/main/tools/a30-remote/install.sh -o /tmp/a30-install.sh && bash /tmp/a30-install.sh
+```
+
+Com wget:
+
+```bash
+wget -O /tmp/a30-install.sh https://raw.githubusercontent.com/ThHSzR/homelab/main/tools/a30-remote/install.sh && bash /tmp/a30-install.sh
+```
+
+O script baixado busca somente os fontes deste diretório via raw. `--check` valida dependências sem instalar ou conectar. Também aceita stdin (`bash -s`); baixar primeiro permite conferir o conteúdo antes de executar. Para fixar uma revisão, substitua `main` na URL por um commit e execute com `A30_REF=<mesmo-commit> bash /tmp/a30-install.sh`.
+
+No Linux, execute sem sudo. O cliente vai para `~/.local/share/a30-remote`, com comando em `~/.local/bin/a30-remote` e entrada no menu. Reexecute para atualizar: chaves SSH e logs são preservados. Destinos sem marcador e comandos de outra origem são recusados. Adicione `~/.local/bin` ao PATH ou use:
+
+```bash
+~/.local/bin/a30-remote configurar-ssh
+~/.local/bin/a30-remote conectar
+```
+
+No Windows, o Bash compila os pequenos clientes C# localmente e instala por usuário, com atalhos no menu Iniciar/Desktop e desinstalação em Aplicativos instalados. Usa scrcpy/ADB do sistema, incluindo o servidor scrcpy da mesma distribuição instalada. Feche A30 Remoto antes de atualizar.
 
 ## Provisionamento único do gateway
 
-Execute uma vez, em um computador que já tenha ADB autorizado no A30 e SSH
-autorizado no Termux:
+O gateway já provisionado no A30 não precisa ser reinstalado para cada cliente. Para provisionar ou recuperar, use o clone em uma máquina com ADB e SSH já autorizados:
 
 ```bash
-chmod +x tools/a30-remote/a30-adb-gateway tools/a30-remote/provision-gateway.sh
-tools/a30-remote/provision-gateway.sh
+bash tools/a30-remote/provision-gateway.sh
 ```
 
-Por padrão, o script usa:
+Usa `adb` do PATH, dispositivo `10.150.235.246:5555` e configuração SSH `~/.local/state/a30-remote/ssh_config`. Sobrescreva com `A30_LOCAL_ADB`, `A30_LOCAL_SERIAL` e `A30_SSH_CONFIG` quando necessário. A chave ADB segue por stdin do SSH e nunca é impressa ou incluída no repositório.
 
-- ADB em `~/.local/share/a30-remote/bin/adb`;
-- dispositivo em `10.150.235.246:5555`;
-- SSH configurado em `~/.local/state/a30-remote/ssh_config`.
+O servidor ADB fica no socket Unix privado do Termux. O cliente abre túneis SSH para esse socket e para o vídeo, sem publicar o protocolo ADB na LAN/Tailnet. Cada máquina tem chave SSH própria. Se o login por senha estiver desabilitado, um administrador deve cadastrar a chave pública apresentada no `~/.ssh/authorized_keys` do Termux. Para revogar, remova somente essa chave.
 
-Os caminhos podem ser alterados com `A30_LOCAL_ADB`, `A30_LOCAL_SERIAL` e
-`A30_SSH_CONFIG`. A chave ADB é enviada diretamente ao Termux pelo stdin do
-SSH; ela não é impressa nem gravada no repositório.
+Se o Android revogar o ADB ou deixar de oferecer transporte após reiniciar, será necessário acesso local para recuperar o gateway.
 
-## Nova máquina
-
-1. Conecte a máquina à mesma Tailnet do A30.
-2. Instale o pacote A30 Remoto.
-3. Execute `a30-remote configurar-ssh` e informe a senha SSH do Termux.
-4. Execute `a30-remote conectar`.
-
-Se a autenticação SSH por senha estiver desabilitada, uma sessão administrativa
-já autorizada precisa adicionar a chave pública apresentada pelo cliente ao
-`~/.ssh/authorized_keys` do Termux. Isso não requer acesso físico ao telefone.
-
-## Windows 10/11 x64
-
-Abra **A30 Remoto** pelo atalho do instalador. Requer OpenSSH Client e .NET
-Framework 4.5 ou superior; o instalador não tem assinatura Authenticode.
-
-## Linux x86_64
-
-Instale sem `sudo`:
+## Verificar e compilar opcionalmente
 
 ```bash
-bash Instalar-A30-Linux-x86_64.run
+bash tools/a30-remote/test-install.sh
+shellcheck tools/a30-remote/install.sh tools/a30-remote/test-install.sh
 ```
 
-Depois abra **A30 Remoto** no menu ou execute `~/.local/bin/a30-remote`.
-Requer Bash, OpenSSH Client, Python 3, glibc, libudev, libcap e sessão gráfica.
-
-## Compilar
-
-Em Windows x64 com PowerShell 5.1+, compilador .NET Framework e `tar`:
+Os testes isolam HOME, simulam dependências e não acessam o A30. `VALIDACAO.md` distingue esses testes da validação real do gateway. Para gerar apenas o instalador Windows local, com dependências no PATH:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\a30-remote\build.ps1
 ```
 
-O script baixa as distribuições oficiais do scrcpy 5.0.1, confere hashes
-fixados, compila o cliente e o instalador Windows e gera o instalador Linux.
-Os resultados ficam em `tools/a30-remote/dist/` e são ignorados pelo Git.
-
-## Recuperação e revogação
-
-Para revogar um computador, remova somente sua chave pública do
-`~/.ssh/authorized_keys` no Termux. Se a depuração ADB for desligada, a
-autorização Android for revogada ou o telefone deixar de oferecer um transporte
-ADB após reiniciar, será necessário provisionar novamente com acesso local.
+O resultado fica em `tools/a30-remote/dist/`, ignorado pelo Git. O fluxo normal é `bash tools/a30-remote/install.sh`; não há etapa de publicação.

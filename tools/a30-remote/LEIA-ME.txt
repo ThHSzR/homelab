@@ -9,7 +9,8 @@ na Tailnet.
 
 NOVA MAQUINA
 1. Instale e conecte o Tailscale na mesma Tailnet do A30.
-2. Instale este pacote. No Linux, rode o instalador sem sudo.
+2. Execute bash tools/a30-remote/install.sh no clone da main.
+   Para URL raw e dependencias, consulte README.md. No Linux, sem sudo.
 3. Escolha Configurar SSH. Uma chave exclusiva sera criada em
    ~/.ssh/a30_remote_ed25519 e somente a chave publica sera cadastrada no
    Termux usando a senha SSH.
@@ -62,6 +63,6 @@ acesso local para provisionar novamente o gateway. Nao exige root e nao altera
 PM2, boot, SELinux, roteador ou firewall.
 
 ORIGEM
-scrcpy e ADB portateis do projeto oficial, versao scrcpy 5.0.1.
-https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1
-O pacote nao contem senhas, chaves privadas, adbkey, cookies ou sessoes.
+scrcpy >= 2 e ADB instalados pelo gerenciador de pacotes e no PATH.
+https://github.com/Genymobile/scrcpy
+Os fontes nao contem senhas, chaves privadas, adbkey, cookies ou sessoes.

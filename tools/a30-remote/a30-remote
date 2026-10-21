@@ -4,8 +4,8 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
 DATA="${XDG_STATE_HOME:-$HOME/.local/state}/a30-remote"
 KEY="$HOME/.ssh/a30_remote_ed25519"
-ADB="$ROOT/bin/adb"
-SCRCPY="$ROOT/bin/scrcpy"
+ADB="$(command -v adb || true)"
+SCRCPY="$(command -v scrcpy || true)"
 DEST=100.65.49.34
 SSH_HOST=a30-remote-gateway
 REMOTE_ADB_SOCKET=/data/data/com.termux/files/home/.local/share/a30-remote-gateway/adb.sock
@@ -107,6 +107,8 @@ free_remote_port() {
 start_gateway() {
     local output
     test_ssh || { fail 'Entre na Tailnet e execute a30-remote configurar-ssh.'; return 1; }
+    # Expand HOME on the remote Termux, not on the client.
+    # shellcheck disable=SC2016
     output="$("${SSH[@]}" -n -o BatchMode=yes "$SSH_HOST" '$HOME/.local/bin/a30-adb-gateway start')" || {
         fail 'O gateway ADB do Termux nao iniciou. Execute o provisionamento unico a partir de uma maquina autorizada.'
         return 1
@@ -185,6 +187,7 @@ diagnostics() {
     "$ADB" version
     "$SCRCPY" --version
     test_ssh || return 1
+    # shellcheck disable=SC2016 # HOME belongs to the remote Termux.
     "${SSH[@]}" -n -o BatchMode=yes "$SSH_HOST" '$HOME/.local/bin/a30-adb-gateway status' || return 1
     start_gateway
     open_tunnel

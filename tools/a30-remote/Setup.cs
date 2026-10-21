@@ -23,7 +23,7 @@ class Setup {
             Application.SetCompatibleTextRenderingDefault(false);
             var form=new Form {Text="Instalar "+Product,ClientSize=new Size(610,390),StartPosition=FormStartPosition.CenterScreen,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,Font=new Font("Segoe UI",10)};
             var title=new Label {Text="A30 Remoto",Font=new Font("Segoe UI",22,FontStyle.Bold),Location=new Point(25,20),AutoSize=true};
-            var desc=new Label {Text="Tela do Galaxy A30 pelo SSH e Tailscale.\nInclui ADB e scrcpy. Instala apenas para seu usuario.\nNao requer administrador nem altera o celular.",Location=new Point(28,76),Size=new Size(550,70)};
+            var desc=new Label {Text="Tela do Galaxy A30 pelo SSH e Tailscale.\nUsa ADB e scrcpy instalados no PATH.\nInstala apenas para seu usuario.",Location=new Point(28,76),Size=new Size(550,70)};
             var path=new Label {Text="Pasta de instalacao:\n"+Target,Location=new Point(28,155),Size=new Size(550,54)};
             var desktop=new CheckBox {Text="Criar atalho na area de trabalho",Checked=true,Location=new Point(28,220),AutoSize=true};
             var note=new Label {Text="Requer Tailscale conectado e OpenSSH Client.\nNa primeira conexao, configure somente o SSH; nao e preciso tocar no A30.",Location=new Point(28,254),Size=new Size(550,50)};

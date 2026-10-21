@@ -4,7 +4,7 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SSH_CONFIG="${A30_SSH_CONFIG:-$HOME/.local/state/a30-remote/ssh_config}"
 DEST="${A30_SSH_DEST:-100.65.49.34}"
-LOCAL_ADB="${A30_LOCAL_ADB:-$HOME/.local/share/a30-remote/bin/adb}"
+LOCAL_ADB="${A30_LOCAL_ADB:-$(command -v adb || true)}"
 LOCAL_SERIAL="${A30_LOCAL_SERIAL:-10.150.235.246:5555}"
 ANDROID_DIR="$HOME/.android"
 REMOTE_BASE='.local/share/a30-remote-gateway'
@@ -22,9 +22,9 @@ fail() {
 [[ -f "$ANDROID_DIR/adbkey.pub" ]] || fail "Chave ADB publica ausente: $ANDROID_DIR/adbkey.pub"
 [[ -x "$ROOT/a30-adb-gateway" ]] || fail 'Script do gateway sem permissao de execucao.'
 
-state="$($LOCAL_ADB -s "$LOCAL_SERIAL" get-state 2>/dev/null || true)"
+state="$("$LOCAL_ADB" -s "$LOCAL_SERIAL" get-state 2>/dev/null || true)"
 [[ "$state" == device ]] || fail "A chave local precisa estar autorizada no A30 ($LOCAL_SERIAL)."
-actual="$($LOCAL_ADB -s "$LOCAL_SERIAL" shell getprop ro.serialno | tr -d '\r')"
+actual="$("$LOCAL_ADB" -s "$LOCAL_SERIAL" shell getprop ro.serialno | tr -d '\r')"
 [[ "$actual" == RQ8M70A9WBP ]] || fail 'O dispositivo ADB local nao e o A30 esperado.'
 
 SSH=(ssh -F "$SSH_CONFIG")

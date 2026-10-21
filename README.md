@@ -47,7 +47,7 @@ Notebook / Desktop
 
 ## Tecnologias
 
-O acesso remoto à tela do Galaxy A30 tem [instaladores para Windows e Linux](tools/a30-remote/README.md), com ADB + scrcpy por um gateway central no Termux. Depois do provisionamento único, máquinas novas precisam apenas de Tailnet e SSH, sem USB ou autorização na tela do celular.
+O acesso remoto à tela do Galaxy A30 usa [instalação direta por Bash no Windows e Linux](tools/a30-remote/README.md), com ADB + scrcpy por um gateway central no Termux. No clone da `main`, execute `bash tools/a30-remote/install.sh` depois de instalar as dependências indicadas. Também há comandos curl/wget para o script raw da `main`. Depois do provisionamento único, máquinas novas precisam apenas de Tailnet e SSH, sem USB ou autorização na tela do celular.
 
 - Android
 - Termux
