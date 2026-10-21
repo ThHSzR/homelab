@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
 DATA="${XDG_STATE_HOME:-$HOME/.local/state}/a30-remote"
 KEY="$HOME/.ssh/a30_remote_ed25519"
 ADB="$ROOT/bin/adb"
 SCRCPY="$ROOT/bin/scrcpy"
-SERIAL=RQ8M70A9WBP
 DEST=100.65.49.34
+SSH_HOST=a30-remote-gateway
+REMOTE_ADB_SOCKET=/data/data/com.termux/files/home/.local/share/a30-remote-gateway/adb.sock
+EXPECTED_SERIAL=RQ8M70A9WBP
 mkdir -p -- "$DATA"
 chmod 700 "$DATA"
 CONFIG="$DATA/ssh_config"
+
 for dependency in ssh python3; do
     command -v "$dependency" >/dev/null || { echo "Dependencia ausente: $dependency" >&2; exit 1; }
 done
+[[ -x "$ADB" ]] || { echo "Dependencia ausente: $ADB" >&2; exit 1; }
+[[ -x "$SCRCPY" ]] || { echo "Dependencia ausente: $SCRCPY" >&2; exit 1; }
+
 {
-    printf 'Host %s\n  HostName 100.65.49.34\n  Port 8022\n  User u0_a267\n' "$DEST"
+    printf 'Host %s %s\n  HostName %s\n  Port 8022\n  User u0_a267\n' "$SSH_HOST" "$DEST" "$DEST"
     printf '  HostKeyAlgorithms ssh-ed25519\n  StrictHostKeyChecking yes\n'
     printf '  UserKnownHostsFile "%s"\n' "$ROOT/known_hosts"
     printf '  ConnectTimeout 10\n  ServerAliveInterval 20\n  ServerAliveCountMax 3\n'
@@ -22,122 +29,195 @@ done
     printf 'Include "%s"\n' "$HOME/.ssh/config"
 } > "$CONFIG"
 chmod 600 "$CONFIG"
+
 SSH=(ssh -F "$CONFIG")
 tunnel_pid=''
-endpoint=''
+adb_socket=''
+remote_stream_port=''
+remote_serial=''
+stream_local=''
+
 cleanup() {
-    if [[ -n "$endpoint" ]]; then "$ADB" disconnect "$endpoint" >/dev/null 2>&1 || true; endpoint=''; fi
-    if [[ -n "$tunnel_pid" ]]; then kill "$tunnel_pid" 2>/dev/null || true; wait "$tunnel_pid" 2>/dev/null || true; tunnel_pid=''; fi
+    if [[ -n "$adb_socket" && -n "$remote_stream_port" && -n "$remote_serial" ]]; then
+        ADB_SERVER_SOCKET="$adb_socket" "$ADB" -s "$remote_serial" forward --remove "tcp:$remote_stream_port" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$tunnel_pid" ]]; then
+        kill "$tunnel_pid" 2>/dev/null || true
+        wait "$tunnel_pid" 2>/dev/null || true
+        tunnel_pid=''
+    fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
-fail() { echo "ERRO: $*" >&2; return 1; }
-test_ssh() { "${SSH[@]}" -n -o BatchMode=yes "$DEST" true; }
+
+fail() {
+    echo "ERRO: $*" >&2
+    return 1
+}
+
+test_ssh() {
+    "${SSH[@]}" -n -o BatchMode=yes "$SSH_HOST" true
+}
+
 setup_ssh() {
-    if test_ssh; then echo 'SSH ja autorizado nesta maquina.'; return; fi
+    if test_ssh; then
+        echo 'SSH ja autorizado nesta maquina.'
+        return
+    fi
     command -v ssh-keygen >/dev/null || { fail 'Instale openssh-client.'; return 1; }
     mkdir -p -- "$HOME/.ssh"
     chmod 700 "$HOME/.ssh"
-    if [[ ! -f "$KEY" ]]; then ssh-keygen -q -t ed25519 -N '' -C a30-remote-client -f "$KEY"; fi
-    # Esta IdentityFile e local; a chave privada nunca entra no pacote.
-    if ! grep -q 'IdentityFile' "$CONFIG"; then printf 'Host %s\n  IdentityFile "%s"\n' "$DEST" "$KEY" >> "$CONFIG"; fi
+    if [[ ! -f "$KEY" ]]; then
+        ssh-keygen -q -t ed25519 -N '' -C a30-remote-client -f "$KEY"
+    fi
+    if ! grep -q 'IdentityFile' "$CONFIG"; then
+        printf 'Host %s\n  IdentityFile "%s"\n' "$SSH_HOST" "$KEY" >> "$CONFIG"
+    fi
     local encoded
     encoded="$(base64 < "$KEY.pub" | tr -d '\n')"
-    echo 'Digite a senha SSH do Termux para cadastrar apenas a chave publica desta maquina.'
-    echo 'Se o Termux nao tem senha configurada, execute passwd nele primeiro.'
-    if ! "${SSH[@]}" -o BatchMode=no "$DEST" sh -s <<REMOTE
+    echo 'Digite a senha SSH do Termux para cadastrar somente a chave publica desta maquina.'
+    if ! "${SSH[@]}" -o BatchMode=no "$SSH_HOST" sh -s <<REMOTE
 set -e
 umask 077
 mkdir -p "\$HOME/.ssh"
 touch "\$HOME/.ssh/authorized_keys"
 k=\$(printf '%s' '$encoded' | base64 -d)
-grep -qxF "\$k" "\$HOME/.ssh/authorized_keys" || printf '\\n%s\\n' "\$k" >> "\$HOME/.ssh/authorized_keys"
+grep -qxF "\$k" "\$HOME/.ssh/authorized_keys" || printf '\n%s\n' "\$k" >> "\$HOME/.ssh/authorized_keys"
 chmod 700 "\$HOME/.ssh"
 chmod 600 "\$HOME/.ssh/authorized_keys"
 REMOTE
     then
         cat "$KEY.pub"
-        fail 'Adicione a chave publica acima ao ~/.ssh/authorized_keys do Termux. Nunca copie a chave privada de outro computador.'
+        fail 'Cadastro automatico falhou. Adicione a chave publica acima ao authorized_keys do Termux.'
         return 1
     fi
     test_ssh || { fail 'Cadastro enviado, mas autenticacao por chave falhou.'; return 1; }
-    echo 'SSH configurado. A chave privada ficou somente nesta maquina.'
+    echo 'SSH configurado. Nenhuma autorizacao ADB no celular e necessaria.'
 }
-usb_setup() {
-    "$ADB" devices | grep -Eq "^${SERIAL}[[:space:]]+device[[:space:]]*$" || { fail 'Conecte o A30 por USB nesta maquina e autorize a chave ADB no Android.'; return 1; }
-    "$ADB" -s "$SERIAL" tcpip 5555 || return 1
-    sleep 2
+
+free_local_port() {
+    python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'
 }
-session() {
-    local action="${1:-conectar}" port state actual authorized=0 code=0
-    test_ssh || { fail 'Entre na mesma tailnet e execute a30-remote configurar-ssh.'; return 1; }
-    "${SSH[@]}" -o BatchMode=yes "$DEST" sh -s <<'REMOTE' || { fail 'ADB TCP desligado. Ative por USB em uma maquina autorizada.'; return 1; }
-python -c 'import socket; s=socket.create_connection(("127.0.0.1",5555),5); s.close()'
-REMOTE
-    port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
-    endpoint="127.0.0.1:$port"
-    "${SSH[@]}" -n -o BatchMode=yes -o ExitOnForwardFailure=yes -N -T -L "127.0.0.1:$port:127.0.0.1:5555" "$DEST" 2> "$DATA/ssh-session.log" &
+
+free_remote_port() {
+    "${SSH[@]}" -n -o BatchMode=yes "$SSH_HOST" \
+        "python -c 'import socket; s=socket.socket(); s.bind((\"127.0.0.1\",0)); print(s.getsockname()[1]); s.close()'"
+}
+
+start_gateway() {
+    local output
+    test_ssh || { fail 'Entre na Tailnet e execute a30-remote configurar-ssh.'; return 1; }
+    output="$("${SSH[@]}" -n -o BatchMode=yes "$SSH_HOST" '$HOME/.local/bin/a30-adb-gateway start')" || {
+        fail 'O gateway ADB do Termux nao iniciou. Execute o provisionamento unico a partir de uma maquina autorizada.'
+        return 1
+    }
+    remote_serial="$(printf '%s\n' "$output" | tail -n 1 | tr -d '\r')"
+    [[ "$remote_serial" =~ ^[A-Za-z0-9._:-]+$ ]] || { fail 'O gateway retornou um serial invalido.'; return 1; }
+}
+
+open_tunnel() {
+    local adb_local
+    adb_local="$(free_local_port)"
+    stream_local="$(free_local_port)"
+    remote_stream_port="$(free_remote_port)"
+    [[ "$adb_local" != "$stream_local" ]] || stream_local="$(free_local_port)"
+    adb_socket="tcp:127.0.0.1:$adb_local"
+    "${SSH[@]}" -n -o BatchMode=yes -o ExitOnForwardFailure=yes -N -T \
+        -L "127.0.0.1:$adb_local:$REMOTE_ADB_SOCKET" \
+        -L "127.0.0.1:$stream_local:127.0.0.1:$remote_stream_port" \
+        "$SSH_HOST" > /dev/null 2> "$DATA/ssh-session.log" &
     tunnel_pid=$!
     sleep 2
-    kill -0 "$tunnel_pid" 2>/dev/null || { cat "$DATA/ssh-session.log" >&2; cleanup; return 1; }
-    "$ADB" connect "$endpoint" || { cleanup; return 1; }
-    echo 'Se aparecer uma solicitacao ADB no A30, aceite a chave desta maquina.'
-    for ((attempt=0; attempt<30; attempt++)); do
-        state="$("$ADB" -s "$endpoint" get-state 2>/dev/null || true)"
-        if [[ "$state" == device ]]; then authorized=1; break; fi
-        sleep 1
-    done
-    if [[ "$authorized" != 1 ]]; then cleanup; fail 'ADB nao autorizado: aceite no Android ou autorize esta maquina por USB.'; return 1; fi
-    actual="$("$ADB" -s "$endpoint" shell getprop ro.serialno | tr -d '\r')"
-    if [[ "$actual" != "$SERIAL" ]]; then cleanup; fail 'O aparelho recebido nao e o A30 esperado.'; return 1; fi
-    if [[ "$action" == desativar-adb ]]; then
-        "$ADB" -s "$endpoint" usb || { cleanup; return 1; }
-        sleep 2
-        "${SSH[@]}" -o BatchMode=yes "$DEST" sh -s <<'REMOTE' || { cleanup; fail 'Nao foi possivel confirmar o fechamento de 5555.'; return 1; }
-python -c 'import socket,sys; s=socket.socket(); s.settimeout(3); r=s.connect_ex(("127.0.0.1",5555)); s.close(); sys.exit(0 if r else 1)'
-REMOTE
+    if ! kill -0 "$tunnel_pid" 2>/dev/null; then
+        cat "$DATA/ssh-session.log" >&2
         cleanup
-        echo 'ADB TCP desativado. Para conectar novamente, reative por USB.'
-        return
+        return 1
     fi
-    local options=(--serial="$endpoint" --force-adb-forward --no-audio --max-size=1280 --max-fps=30 --video-bit-rate=4M --window-title=A30-Remoto --verbosity=debug)
-    if [[ "$action" == testar ]]; then options+=(--time-limit=6); fi
-    echo 'Abrindo tela. Fechar o scrcpy encerra este tunel, mantendo ADB TCP para reconectar.'
-    ADB="$ADB" "$SCRCPY" "${options[@]}" > "$DATA/scrcpy.stdout.log" 2> "$DATA/scrcpy.stderr.log" || code=$?
+}
+
+verify_device() {
+    local state actual model
+    state="$(ADB_SERVER_SOCKET="$adb_socket" "$ADB" -s "$remote_serial" get-state 2>/dev/null || true)"
+    [[ "$state" == device ]] || { fail 'O servidor ADB central nao apresentou o A30 ao cliente.'; return 1; }
+    actual="$(ADB_SERVER_SOCKET="$adb_socket" "$ADB" -s "$remote_serial" shell getprop ro.serialno | tr -d '\r')"
+    model="$(ADB_SERVER_SOCKET="$adb_socket" "$ADB" -s "$remote_serial" shell getprop ro.product.model | tr -d '\r')"
+    [[ "$actual" == "$EXPECTED_SERIAL" && "$model" == SM-A305GT ]] || {
+        fail 'O aparelho recebido nao e o Galaxy A30 esperado.'
+        return 1
+    }
+}
+
+session() {
+    local action="${1:-conectar}" code=0
+    start_gateway
+    open_tunnel
+    verify_device
+    local options=(
+        "--serial=$remote_serial"
+        --force-adb-forward
+        "--port=$remote_stream_port"
+        "--tunnel-host=127.0.0.1"
+        "--tunnel-port=$stream_local"
+        --no-audio
+        --max-size=1280
+        --max-fps=30
+        --video-bit-rate=4M
+        --window-title=A30-Remoto
+        --verbosity=debug
+    )
+    [[ "$action" != testar ]] || options+=(--time-limit=6)
+    echo 'Abrindo tela pelo gateway ADB central do Termux.'
+    ADB="$ADB" ADB_SERVER_SOCKET="$adb_socket" "$SCRCPY" "${options[@]}" \
+        > "$DATA/scrcpy.stdout.log" 2> "$DATA/scrcpy.stderr.log" || code=$?
     cleanup
-    if ((code)); then cat "$DATA/scrcpy.stderr.log" >&2; return "$code"; fi
-    if [[ "$action" == testar ]] && ! grep -q Texture "$DATA/scrcpy.stdout.log" "$DATA/scrcpy.stderr.log"; then fail 'Teste terminou sem confirmar decodificacao de video.'; return 1; fi
+    if ((code)); then
+        cat "$DATA/scrcpy.stderr.log" >&2
+        return "$code"
+    fi
+    if [[ "$action" == testar ]] && ! grep -q Texture "$DATA/scrcpy.stdout.log" "$DATA/scrcpy.stderr.log"; then
+        fail 'Teste terminou sem confirmar a decodificacao de video.'
+        return 1
+    fi
     echo 'Sessao concluida.'
 }
+
 diagnostics() {
-    "$ADB" version || return 1
-    "$SCRCPY" --version || return 1
-    "$ADB" devices -l || return 1
+    "$ADB" version
+    "$SCRCPY" --version
     test_ssh || return 1
-    "${SSH[@]}" -n -o BatchMode=yes "$DEST" 'getprop ro.product.model; getprop service.adb.tcp.port' || return 1
-    echo 'SSH e chave do servidor conferidos. Nenhum servico remoto foi alterado.'
+    "${SSH[@]}" -n -o BatchMode=yes "$SSH_HOST" '$HOME/.local/bin/a30-adb-gateway status' || return 1
+    start_gateway
+    open_tunnel
+    verify_device
+    ADB_SERVER_SOCKET="$adb_socket" "$ADB" devices -l
+    cleanup
+    echo "SSH, gateway ADB central e identidade $EXPECTED_SERIAL conferidos."
+    echo 'Servidor ADB em socket Unix acessivel somente pelo tunel SSH.'
 }
+
 execute() {
     case "${1:-menu}" in
-        conectar|testar|desativar-adb) session "$1" ;;
-        usb) usb_setup && session conectar ;;
+        conectar|testar) session "$1" ;;
         configurar-ssh) setup_ssh ;;
         diagnostico) diagnostics ;;
         ajuda|--help|-h) cat "$ROOT/LEIA-ME.txt" ;;
-        *) fail 'Opcoes: conectar, usb, configurar-ssh, diagnostico, desativar-adb, testar, ajuda'; return 1 ;;
+        *) fail 'Opcoes: conectar, configurar-ssh, diagnostico, testar, ajuda'; return 1 ;;
     esac
 }
-if [[ "${1:-menu}" != menu ]]; then execute "$1"; exit $?; fi
+
+if [[ "${1:-menu}" != menu ]]; then
+    execute "$1"
+    exit $?
+fi
+
 while true; do
-    printf '\nA30 REMOTO - SSH pela tailnet\n1 Conectar tela\n2 Ativar ADB TCP por USB e conectar\n3 Configurar SSH desta maquina\n4 Diagnostico\n5 Desativar ADB TCP (exige USB para voltar)\n6 Instrucoes\n0 Sair\n'
+    printf '\nA30 REMOTO - gateway ADB central pelo Termux\n1 Conectar tela\n2 Configurar SSH desta maquina\n3 Diagnostico\n4 Instrucoes\n0 Sair\n'
     read -r -p 'Opcao: ' choice || break
     case "$choice" in
         0) break ;;
         1) execute conectar || true ;;
-        2) execute usb || true ;;
-        3) execute configurar-ssh || true ;;
-        4) execute diagnostico || true ;;
-        5) read -r -p 'Isso corta o ADB remoto. Digite DESATIVAR: ' confirm; [[ "$confirm" != DESATIVAR ]] || execute desativar-adb || true ;;
-        6) execute ajuda ;;
+        2) execute configurar-ssh || true ;;
+        3) execute diagnostico || true ;;
+        4) execute ajuda ;;
     esac
 done

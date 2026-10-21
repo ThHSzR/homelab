@@ -47,7 +47,7 @@ Notebook / Desktop
 
 ## Tecnologias
 
-O acesso remoto à tela do Galaxy A30 tem [instaladores para Windows e Linux](tools/a30-remote/README.md), com ADB + scrcpy pelo SSH na tailnet.
+O acesso remoto à tela do Galaxy A30 tem [instaladores para Windows e Linux](tools/a30-remote/README.md), com ADB + scrcpy por um gateway central no Termux. Depois do provisionamento único, máquinas novas precisam apenas de Tailnet e SSH, sem USB ou autorização na tela do celular.
 
 - Android
 - Termux

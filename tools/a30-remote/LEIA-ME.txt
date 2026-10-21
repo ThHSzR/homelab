@@ -1,99 +1,67 @@
-A30 REMOTO — Windows e Linux x86_64
+A30 REMOTO — GATEWAY ADB CENTRAL
 
-PREPARAR OUTRO COMPUTADOR
-1. Instale e conecte o Tailscale na mesma tailnet do A30, com acesso a
-   100.65.49.34:8022. Estes pacotes nao instalam nem autenticam o Tailscale.
-2. Windows 10/11 x64: copie Instalar-A30-Windows-x64.exe e abra o instalador.
-   Requer OpenSSH Client e .NET Framework 4.5 ou superior, normalmente ja presentes.
-   Instala em %LOCALAPPDATA%\Programs\A30Remoto, com atalhos no menu Iniciar
-   e opcionalmente na area de trabalho, e registro em Aplicativos instalados.
-   Abra o atalho A30 Remoto para conectar. Nao exige administrador.
-3. Linux x86_64: rode bash Instalar-A30-Linux-x86_64.run, sem sudo.
-   Requer bash, openssh-client, python3 e ambiente grafico. Depois abra
-   A30 Remoto no menu de aplicativos, ou ~/.local/bin/a30-remote.
-   Nao execute o instalador com sudo. Outras arquiteturas nao estao incluidas.
-   Os binarios Linux requerem glibc, libudev.so.1 e libcap.so.2. Se o sistema
-   indicar biblioteca ausente, instale-a pelo gerenciador da distribuicao.
-4. No menu do cliente escolha Configurar SSH. Se uma chave local existente
-   ja funcionar, ela sera usada. Senao, uma chave exclusiva desta maquina
-   sera criada em ~/.ssh/a30_remote_ed25519, sem senha de chave, e o assistente
-   solicitara a senha SSH do Termux para cadastrar SOMENTE sua chave publica.
-   Se o Termux nao tiver senha, execute passwd nele primeiro. Se autenticacao
-   por senha estiver desativada, copie a chave .pub para authorized_keys no A30
-   usando uma sessao ja autorizada. Nunca copie chaves privadas entre maquinas.
-5. Escolha Conectar tela. No primeiro uso deste computador pode aparecer
-   autorizacao ADB no celular: aceite a chave. Apenas entrar na tailnet nao
-   concede acesso SSH/ADB automaticamente. A autorizacao existente e preservada.
+COMO FUNCIONA
+O servidor ADB roda dentro do Termux do A30 e e o unico componente que possui
+uma chave autorizada pelo Android. O cliente abre por SSH dois tuneis locais:
+um para o socket Unix privado do servidor ADB do Termux e outro para o fluxo
+temporario do scrcpy. O servidor ADB nao possui porta TCP publicada na LAN ou
+na Tailnet.
 
-PREPARAR O A30
-O Android precisa estar com ADB TCP 5555 ativo. Se estiver desligado, conecte
-USB a um computador autorizado e escolha Ativar ADB TCP por USB e conectar,
-ou execute adb -s RQ8M70A9WBP tcpip 5555. Nao exige root.
-Depois de um reboot do A30, pode ser necessario repetir essa etapa por USB.
-O dispositivo esperado e o Samsung SM-A305GT, serial RQ8M70A9WBP.
+NOVA MAQUINA
+1. Instale e conecte o Tailscale na mesma Tailnet do A30.
+2. Instale este pacote. No Linux, rode o instalador sem sudo.
+3. Escolha Configurar SSH. Uma chave exclusiva sera criada em
+   ~/.ssh/a30_remote_ed25519 e somente a chave publica sera cadastrada no
+   Termux usando a senha SSH.
+4. Escolha Conectar tela.
 
-CONEXAO
-O aplicativo escolhe uma porta local livre e cria:
-localhost do computador -> SSH 100.65.49.34:8022 -> localhost:5555 do A30.
-O SSH funciona atraves do Tailscale userspace/PRoot; nao depende de abrir
-diretamente 100.65.49.34:5555. Nao usa root nem muda PM2, boot ou SELinux.
-O servidor SSH e conferido pela chave publica ed25519 ja validada:
-SHA256:p+DLUo1QEXgkxOoj7INQtreXQVtE5F7YZ3AXYkaHDGM
-Se a chave do servidor mudar, o cliente recusa a conexao: confira a identidade
-do A30 antes de atualizar o known_hosts. Nao desative essa verificacao.
+Nao e necessario ter o A30 em maos, aceitar dialogo ADB, parear depuracao sem
+fio, usar USB ou estar na mesma rede local. O gateway precisa ter sido
+provisionado uma unica vez por uma maquina previamente autorizada.
 
-USAR E ENCERRAR
-Mouse e teclado controlam a tela. Botao direito: Voltar; central: Inicio.
-Fechar a janela do scrcpy fecha apenas o tunel desta sessao e deixa ADB TCP
-ativo para voce poder reconectar remotamente. Nao encerra outros tuneis ou
-o servidor ADB global. Nao ha gravacao de tela nem encaminhamento de audio.
-Para fechar a porta 5555 do A30, escolha Desativar ADB TCP. Isso exige
-reativacao por USB para o proximo acesso. A opcao pede confirmacao no menu.
+Se o login SSH por senha estiver desativado, use uma sessao administrativa ja
+autorizada para adicionar a chave .pub apresentada ao authorized_keys do
+Termux. Nunca copie chaves privadas entre maquinas.
 
 SEGURANCA
-No A30 atual, adb tcpip faz 5555 escutar tambem nas interfaces de rede.
-O tunel protege o caminho usado pelo cliente, mas nao fecha essa exposicao
-no telefone. Use redes confiaveis; desative ADB TCP ao entrar em rede nao
-confiavel. A autenticacao ADB permanece ligada. Nao ha regra de roteador,
-firewall remoto ou ADB 5037 publicado por estes clientes.
-O pacote nao contem senhas, chaves privadas, adbkey, cookies ou sessoes.
-Nao instala servico no boot nem reinicia o celular. A inicializacao remota
-do ADB TCP apos reboot nao e garantida; planeje acesso fisico para recuperacao.
-O executavel Windows foi compilado localmente e nao possui assinatura Authenticode.
+Cada computador tem sua propria chave SSH. Para revoga-lo, remova apenas sua
+linha de ~/.ssh/authorized_keys no Termux. A chave ADB do gateway nunca e
+incluida neste pacote. O SSH confere estritamente a chave publica ed25519 do
+servidor: SHA256:p+DLUo1QEXgkxOoj7INQtreXQVtE5F7YZ3AXYkaHDGM.
+
+O servidor ADB usa o socket Unix privado:
+/data/data/com.termux/files/home/.local/share/a30-remote-gateway/adb.sock
 
 COMANDOS
 Windows: A30-Remoto.exe --conectar
-         A30-Remoto.exe --usb
          A30-Remoto.exe --configurar-ssh
          A30-Remoto.exe --diagnostico
-         A30-Remoto.exe --desativar-adb
+         A30-Remoto.exe --testar
 Linux:   a30-remote conectar
-         a30-remote usb
          a30-remote configurar-ssh
          a30-remote diagnostico
-         a30-remote desativar-adb
-O comando desativar-adb pela linha de comando e imediato, sem a confirmacao
-do menu. testar abre uma sessao de video limitada a seis segundos.
+         a30-remote testar
+         a30-remote ajuda
 
-LOGS E REMOCAO
-Windows: logs em %LOCALAPPDATA%\A30Remote.
-Para remover, feche o programa e use Aplicativos instalados do Windows ou
-o atalho Desinstalar A30 Remoto no menu Iniciar. Chaves e logs sao preservados.
-O instalador suporta --silent --no-launch para instalacao sem abrir o assistente.
-Linux: logs em ${XDG_STATE_HOME:-~/.local/state}/a30-remote.
-Para remover, apague ~/.local/share/a30-remote, o atalho
-~/.local/share/applications/a30-remote.desktop e o link ~/.local/bin/a30-remote.
-As chaves locais ficam em ~/.ssh/a30_remote_ed25519 e .pub. Para revogar
-um computador, remova apenas a linha de sua chave publica no authorized_keys
-do Termux; nao apague as autorizacoes de outros computadores.
+O comando testar abre a tela por seis segundos e confirma a decodificacao do
+video. Fechar o scrcpy encerra somente os tuneis da sessao.
+
+LOGS E ARQUIVOS LOCAIS
+Windows: %LOCALAPPDATA%\A30Remote
+Linux:   ${XDG_STATE_HOME:-~/.local/state}/a30-remote
+Chave:   ~/.ssh/a30_remote_ed25519
+
+Para remover o cliente Windows, use Aplicativos instalados. No Linux, remova
+~/.local/share/a30-remote, ~/.local/share/applications/a30-remote.desktop e o
+link ~/.local/bin/a30-remote. Chaves e logs sao preservados.
+
+RECUPERACAO
+Se a depuracao ADB for desligada, todas as autorizacoes forem revogadas ou o
+A30 deixar de oferecer um transporte ADB depois de reiniciar, sera necessario
+acesso local para provisionar novamente o gateway. Nao exige root e nao altera
+PM2, boot, SELinux, roteador ou firewall.
 
 ORIGEM
 scrcpy e ADB portateis do projeto oficial, versao scrcpy 5.0.1.
 https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1
-Windows ZIP SHA256:
-b12a2c4ee8be317422451fc7dcf8ee20a71b5ea7ef9ad73ddd825a25316227a5
-Linux tar.gz SHA256:
-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5fa00779ac07b8fd6e
-Ambos conferidos com SHA256SUMS.txt publicado na mesma release.
-As licencas distribuidas pelo projeto acompanham os binarios. Codigo-fonte
-dos clientes e scripts de compilacao acompanham o pacote de fontes separado.
+O pacote nao contem senhas, chaves privadas, adbkey, cookies ou sessoes.

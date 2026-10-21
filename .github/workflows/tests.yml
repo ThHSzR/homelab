@@ -14,5 +14,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Validate A30 remote shell scripts
+        run: bash -n tools/a30-remote/a30-remote tools/a30-remote/a30-adb-gateway tools/a30-remote/provision-gateway.sh tools/a30-remote/install-linux-header.sh
       - run: npm ci
       - run: npm test

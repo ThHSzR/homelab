@@ -26,7 +26,7 @@ class Setup {
             var desc=new Label {Text="Tela do Galaxy A30 pelo SSH e Tailscale.\nInclui ADB e scrcpy. Instala apenas para seu usuario.\nNao requer administrador nem altera o celular.",Location=new Point(28,76),Size=new Size(550,70)};
             var path=new Label {Text="Pasta de instalacao:\n"+Target,Location=new Point(28,155),Size=new Size(550,54)};
             var desktop=new CheckBox {Text="Criar atalho na area de trabalho",Checked=true,Location=new Point(28,220),AutoSize=true};
-            var note=new Label {Text="Requer Tailscale conectado e OpenSSH Client.\nNa primeira conexao, configure SSH e autorize o ADB no Android.",Location=new Point(28,254),Size=new Size(550,50)};
+            var note=new Label {Text="Requer Tailscale conectado e OpenSSH Client.\nNa primeira conexao, configure somente o SSH; nao e preciso tocar no A30.",Location=new Point(28,254),Size=new Size(550,50)};
             var status=new Label {Text="Pronto para instalar.",Location=new Point(28,332),Size=new Size(320,40)};
             var install=new Button {Text="Instalar",Location=new Point(438,325),Size=new Size(140,38)};
             bool installed=false;
@@ -71,7 +71,7 @@ class Setup {
         Shortcut(Path.Combine(menu,"Desinstalar A30 Remoto.lnk"),ps,uninstallArgs);
         if(desktop) Shortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"A30 Remoto.lnk"),AppPath,"");
         using(var key=Registry.CurrentUser.CreateSubKey(RegistryPath)) {
-            key.SetValue("DisplayName",Product); key.SetValue("DisplayVersion","1.0.0"); key.SetValue("Publisher","HomeLab pessoal");
+            key.SetValue("DisplayName",Product); key.SetValue("DisplayVersion","1.1.0"); key.SetValue("Publisher","HomeLab pessoal");
             key.SetValue("InstallLocation",Target); key.SetValue("DisplayIcon",AppPath);
             key.SetValue("UninstallString","\""+ps+"\" "+uninstallArgs);
             key.SetValue("QuietUninstallString","\""+ps+"\" "+uninstallArgs+" -Quiet");
