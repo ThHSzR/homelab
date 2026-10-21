@@ -71,7 +71,7 @@ class Setup {
         Shortcut(Path.Combine(menu,"Desinstalar A30 Remoto.lnk"),ps,uninstallArgs);
         if(desktop) Shortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"A30 Remoto.lnk"),AppPath,"");
         using(var key=Registry.CurrentUser.CreateSubKey(RegistryPath)) {
-            key.SetValue("DisplayName",Product); key.SetValue("DisplayVersion","1.2.0"); key.SetValue("Publisher","HomeLab pessoal");
+            key.SetValue("DisplayName",Product); key.SetValue("DisplayVersion","1.2.1"); key.SetValue("Publisher","HomeLab pessoal");
             key.SetValue("InstallLocation",Target); key.SetValue("DisplayIcon",AppPath);
             key.SetValue("UninstallString","\""+ps+"\" "+uninstallArgs);
             key.SetValue("QuietUninstallString","\""+ps+"\" "+uninstallArgs+" -Quiet");

@@ -1,4 +1,40 @@
 # Shared by the native installer, local build and installed client (PowerShell 5.1+).
+function ConvertTo-A30RemoteCommand([string]$Script) {
+    $encodedScript = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Script.Replace("`r`n","`n")))
+    return "printf %s $encodedScript | base64 -d | sh"
+}
+
+function Get-A30FreePortCommand {
+    return ConvertTo-A30RemoteCommand @'
+python - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+'@
+}
+
+function Get-A30KeyRegistrationCommand([string]$PublicKey) {
+    if ($PublicKey -notmatch '^ssh-ed25519 [A-Za-z0-9+/=]+( .*)?$') { throw 'Chave publica SSH invalida.' }
+    $encodedKey = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($PublicKey))
+    # Encode the complete script: Windows native argument handling must not strip
+    # the remote shell's quotes around the public key or HOME.
+    $script = @'
+set -eu
+umask 077
+mkdir -p "$HOME/.ssh"
+touch "$HOME/.ssh/authorized_keys"
+k=$(printf %s __PUBLIC_KEY__ | base64 -d)
+grep -qxF "$k" "$HOME/.ssh/authorized_keys" || printf '\n%s\n' "$k" >> "$HOME/.ssh/authorized_keys"
+chmod 700 "$HOME/.ssh"
+chmod 600 "$HOME/.ssh/authorized_keys"
+'@
+    $script = $script.Replace('__PUBLIC_KEY__',$encodedKey).Replace("`r`n","`n")
+    return ConvertTo-A30RemoteCommand $script
+}
+
 function New-A30SshKey([string]$Path) {
     if (Test-Path -LiteralPath $Path) { return }
     $info = New-Object Diagnostics.ProcessStartInfo

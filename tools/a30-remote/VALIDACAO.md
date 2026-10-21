@@ -1,5 +1,25 @@
 # Validação do gateway ADB central
 
+## Cadastro SSH e vídeo Windows corrigidos — 21/10/2026
+
+- Reproduzido com credencial fornecida diretamente pelo usuário: o SSH aceitava
+  a senha, mas o PowerShell removia aspas do comando remoto de cadastro,
+  fazendo o grep interpretar partes da chave como arquivos. A mesma falha
+  removia as aspas do endereço na reserva de porta por Python.
+- Os scripts remotos completos agora seguem codificados em base64, preservando
+  as aspas durante o transporte pelos argumentos nativos do Windows. A senha
+  não faz parte desses scripts: foi informada somente ao prompt do SSH.
+- Cadastro real concluído; nova autenticação por chave passou sem senha. Foi
+  confirmada exatamente uma ocorrência da chave pública no authorized_keys.
+- Diagnóstico confirmou SM-A305GT, Android 11, serial esperado e socket Unix
+  privado do gateway. O teste real scrcpy 4.1 abriu vídeo em 590x1280, confirmou
+  Texture, encerrou após seis segundos e limpou o túnel.
+- Regressões: teste Windows confere que o executável nativo recebe os comandos
+  completos; teste Linux executa os comandos gerados, confere cadastro
+  idempotente de chave com comentário contendo espaços, modo 600 e reserva de
+  porta loopback. A limpeza ADB não interrompe o fechamento do túnel quando um
+  encaminhamento já não existe.
+
 ## Correção Windows nativo — 21/10/2026
 
 - Reproduzido na máquina Windows: o cliente instalado falhava em

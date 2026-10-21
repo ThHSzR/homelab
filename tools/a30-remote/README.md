@@ -80,6 +80,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\a30-remote\test-wind
 ```bash
 bash tools/a30-remote/test-install.sh
 shellcheck tools/a30-remote/a30-remote tools/a30-remote/a30-adb-gateway tools/a30-remote/*.sh
+pwsh -File tools/a30-remote/test-remote.ps1
 ```
 
 Os testes usam dependências simuladas e diretórios temporários; o teste Windows compila o instalador sem instalá-lo no perfil real. O workflow executa os testes em Windows e Linux. O fluxo não baixa pacotes do HomeLab: o Windows compila os pequenos componentes locais, e o Linux instala os fontes. Dependências vêm dos gerenciadores de pacotes.

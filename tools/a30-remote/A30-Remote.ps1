@@ -70,9 +70,8 @@ function Configure-Ssh {
     if ($publicKey -notmatch '^ssh-ed25519 [A-Za-z0-9+/=]+( .*)?$') {
         throw 'Chave publica SSH invalida.'
     }
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($publicKey))
     Write-Host 'Digite a senha SSH do Termux para cadastrar somente a chave publica desta maquina.'
-    $remote = "umask 077; mkdir -p `"`$HOME/.ssh`"; touch `"`$HOME/.ssh/authorized_keys`"; k=`$(printf '%s' '$encoded' | base64 -d); grep -qxF `"`$k`" `"`$HOME/.ssh/authorized_keys`" || printf '\n%s\n' `"`$k`" >> `"`$HOME/.ssh/authorized_keys`"; chmod 700 `"`$HOME/.ssh`"; chmod 600 `"`$HOME/.ssh/authorized_keys`""
+    $remote = Get-A30KeyRegistrationCommand $publicKey
     & ssh.exe -F $Config -o BatchMode=no $SshHost $remote
     if ($LASTEXITCODE -ne 0 -or -not (Test-Ssh)) {
         Write-Host "Chave publica desta maquina: $publicKey"
@@ -100,7 +99,7 @@ function Start-Gateway {
 }
 
 function Get-FreeRemotePort {
-    $raw = & ssh.exe -F $Config -n -o BatchMode=yes $SshHost "python -c 'import socket; s=socket.socket(); s.bind((`"127.0.0.1`",0)); print(s.getsockname()[1]); s.close()'"
+    $raw = & ssh.exe -F $Config -n -o BatchMode=yes $SshHost (Get-A30FreePortCommand)
     if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel reservar a porta remota do scrcpy.' }
     return [int]$raw.Trim()
 }
@@ -158,7 +157,11 @@ function Invoke-Session([bool]$TestOnly) {
     }
     finally {
         if ($env:ADB_SERVER_SOCKET -and $remoteSerial -and $streamRemote) {
-            & $Adb -s $remoteSerial forward --remove "tcp:$streamRemote" 2>$null | Out-Null
+            $previousPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'SilentlyContinue'
+                & $Adb -s $remoteSerial forward --remove "tcp:$streamRemote" 2>$null | Out-Null
+            } finally { $ErrorActionPreference = $previousPreference }
         }
         if ($tunnel -and -not $tunnel.HasExited) {
             Stop-Process -Id $tunnel.Id -Force -ErrorAction SilentlyContinue

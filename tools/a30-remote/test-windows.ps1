@@ -17,6 +17,11 @@ try {
 using System;
 class Dependency {
     static void Main(string[] args) {
+        var expected=Environment.GetEnvironmentVariable("A30_TEST_EXPECT_COMMAND");
+        if(expected!=null) {
+            if(args.Length==0 || args[args.Length-1]!=expected) Environment.Exit(1);
+            return;
+        }
         if(Environment.GetEnvironmentVariable("A30_TEST_SSH_FAIL")=="1") {
             Console.Error.WriteLine("Permission denied"); Environment.Exit(255);
         }
@@ -40,6 +45,13 @@ class Dependency {
     $before = (Get-FileHash -LiteralPath $testKey).Hash
     New-A30SshKey $testKey
     if ((Get-FileHash -LiteralPath $testKey).Hash -ne $before) { throw 'Existing key was overwritten.' }
+    $publicKey = [IO.File]::ReadAllText("$testKey.pub").Trim()
+    foreach ($remoteCommand in @((Get-A30KeyRegistrationCommand $publicKey),(Get-A30FreePortCommand))) {
+        $env:A30_TEST_EXPECT_COMMAND = $remoteCommand
+        & "$stage\scrcpy.exe" -F 'config path with spaces' fixture-host $remoteCommand
+        if ($LASTEXITCODE -ne 0) { throw 'Windows native arguments corrupted the encoded remote command.' }
+    }
+    Remove-Item Env:A30_TEST_EXPECT_COMMAND
     $env:A30_TEST_SSH_FAIL = '1'
     if (Test-A30SshConnection 'fixture config' 'fixture-host' "$stage\scrcpy.exe") { throw 'SSH denial was accepted.' }
     Remove-Item Env:A30_TEST_SSH_FAIL
@@ -67,6 +79,7 @@ class Dependency {
 } finally {
     Remove-Item Env:A30_TEST_VERSION -ErrorAction SilentlyContinue
     Remove-Item Env:A30_TEST_SSH_FAIL -ErrorAction SilentlyContinue
+    Remove-Item Env:A30_TEST_EXPECT_COMMAND -ErrorAction SilentlyContinue
     if ((Split-Path -Parent $stage) -ne ([IO.Path]::GetTempPath()).TrimEnd('\')) { throw 'Unexpected temporary path.' }
     Remove-Item -LiteralPath $stage -Recurse -Force
 }
