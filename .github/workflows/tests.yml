@@ -5,6 +5,14 @@ on:
   push:
     branches: [main]
 jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native Windows installer
+        shell: powershell
+        run: ./tools/a30-remote/test-windows.ps1
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10

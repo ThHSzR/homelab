@@ -5,29 +5,39 @@ fail() { printf 'ERRO: %s\n' "$*" >&2; exit 1; }
 trap 'printf "Instalacao interrompida (linha %s).\n" "$LINENO" >&2' ERR
 if [[ "${1:-}" == --help ]]; then
     echo 'Uso: bash install.sh [--check]. Instala por usuario; nunca use sudo.'
-    echo 'Linux: requer adb, scrcpy >= 2, OpenSSH e Python 3 no PATH.'
-    echo 'Windows: execute no Git Bash, com OpenSSH e scrcpy/adb no PATH.'
+    echo 'Linux: instala dependencias por apt/dnf/pacman quando faltarem (sudo).'
+    echo 'Windows: use install.ps1 no PowerShell nativo.'
     echo 'A30_REF seleciona a branch/tag/commit dos fontes raw (padrao main).'
     exit 0
 fi
 [[ $# == 0 || ( $# == 1 && "$1" == --check ) ]] || fail 'Argumento invalido. Use --help.'
 check="${1:-}"
-case "$(uname -s)" in
-    Linux) platform=linux ;;
-    MINGW*|MSYS*) platform=windows ;;
-    *) fail 'Plataforma suportada: Linux ou Windows com Git Bash.' ;;
-esac
-for tool in ssh ssh-keygen; do command -v "$tool" >/dev/null || fail "Instale $tool e tente novamente."; done
-if [[ "$platform" == linux ]]; then
-    [[ $EUID != 0 ]] || fail 'Execute como usuario normal, sem sudo.'
-    for tool in python3 adb scrcpy install readlink; do command -v "$tool" >/dev/null || fail "Instale $tool pelo gerenciador da distribuicao e tente novamente."; done
-    adb version >/dev/null
-    scrcpy_cmd=scrcpy
-else
-    for tool in powershell.exe adb.exe scrcpy.exe cygpath; do command -v "$tool" >/dev/null || fail "Instale $tool e adicione ao PATH. Consulte README.md."; done
-    adb.exe version >/dev/null
-    scrcpy_cmd=scrcpy.exe
+[[ "$(uname -s)" == Linux ]] || fail 'No Windows use install.ps1 no PowerShell nativo.'
+[[ $EUID != 0 ]] || fail 'Execute como usuario normal, sem sudo.'
+missing=0
+for tool in ssh ssh-keygen python3 adb scrcpy install readlink; do command -v "$tool" >/dev/null || missing=1; done
+if command -v scrcpy >/dev/null; then
+    probe="$(scrcpy --help 2>/dev/null || true)"
+    [[ "$probe" == *--time-limit* && "$probe" == *--video-bit-rate* && "$probe" == *--tunnel-port* ]] || missing=1
 fi
+if [[ $missing == 1 && -z "$check" && "${A30_SKIP_DEPENDENCIES:-0}" != 1 ]]; then
+    command -v sudo >/dev/null || fail 'Falta sudo. Instale adb, scrcpy, OpenSSH e Python 3 pelo gerenciador da distribuicao.'
+    echo 'Instalando dependencias pelo gerenciador da distribuicao...'
+    if command -v apt-get >/dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y adb scrcpy openssh-client python3 curl
+    elif command -v dnf >/dev/null; then
+        sudo dnf install -y android-tools scrcpy openssh-clients python3 curl
+    elif command -v pacman >/dev/null; then
+        sudo pacman -S --needed --noconfirm android-tools scrcpy openssh python curl
+    else
+        fail 'Gerenciador nao reconhecido. Instale adb, scrcpy, OpenSSH e Python 3 e execute novamente.'
+    fi
+fi
+for tool in ssh ssh-keygen; do command -v "$tool" >/dev/null || fail "Instale $tool e tente novamente."; done
+for tool in python3 adb scrcpy install readlink; do command -v "$tool" >/dev/null || fail "Instale $tool pelo gerenciador da distribuicao e tente novamente."; done
+adb version >/dev/null
+scrcpy_cmd=scrcpy
 version="$("$scrcpy_cmd" --version)"
 [[ "$version" =~ scrcpy[[:space:]]+([0-9]+) ]] || fail 'Versao de scrcpy nao reconhecida.'
 (( BASH_REMATCH[1] >= 2 )) || fail 'scrcpy >= 2 e necessario para as opcoes do cliente.'
@@ -45,7 +55,6 @@ if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
     [[ ! -f "$candidate/a30-remote" ]] || root="$candidate"
 fi
 files=(a30-remote known_hosts LEIA-ME.txt)
-[[ "$platform" != windows ]] || files+=(A30-Remote.ps1 Desinstalar.ps1 Client.cs Setup.cs build.ps1)
 if [[ -z "$root" ]]; then
     ref="${A30_REF:-main}"
     [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ && "$ref" != *..* ]] || fail 'A30_REF invalida.'
@@ -62,12 +71,6 @@ if [[ -z "$root" ]]; then
         fi
         [[ -s "$root/$file" ]] || fail "Fonte vazio: $file"
     done
-fi
-if [[ "$platform" == windows ]]; then
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root/build.ps1")" -OutputDirectory "$(cygpath -w "$tmp/dist")"
-    "$tmp/dist/Instalar-A30-Windows-x64.exe" --silent
-    echo 'Instalado. Abra A30 Remoto no menu Iniciar.'
-    exit 0
 fi
 [[ "$HOME" != *$'\n'* && "$HOME" != *'"'* && "$HOME" != *'%'* && "$HOME" != *'`'* && "$HOME" != *'$'* && "$HOME" != *\\* ]] || fail 'HOME nao suportado pelo atalho.'
 target="$HOME/.local/share/a30-remote"

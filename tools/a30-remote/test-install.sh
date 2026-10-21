@@ -7,6 +7,7 @@ trap 'rm -rf -- "$tmp"' EXIT
 [[ $EUID != 0 ]] || { echo 'Execute os testes como usuario normal.' >&2; exit 1; }
 export HOME="$tmp/home with spaces"
 export XDG_STATE_HOME="$HOME/.local/state"
+export A30_SKIP_DEPENDENCIES=1
 mkdir -p "$HOME" "$tmp/bin"
 export PATH="$tmp/bin:$PATH"
 cat > "$tmp/bin/adb" <<'MOCK'
@@ -15,6 +16,10 @@ echo 'Android Debug Bridge version 1.0.41'
 MOCK
 cat > "$tmp/bin/scrcpy" <<'MOCK'
 #!/usr/bin/env bash
+if [[ ${MOCK_INITIAL_OLD:-0} == 1 && ! -f "$MOCK_UPGRADED_FILE" ]]; then
+    echo 'scrcpy 1.25'
+    exit 0
+fi
 if [[ "${1:-}" == --help ]]; then
     [[ ${MOCK_MISSING_OPTIONS:-0} == 0 ]] || exit 0
     echo '--force-adb-forward --tunnel-host --tunnel-port --no-audio --max-fps --video-bit-rate --time-limit'
@@ -85,6 +90,27 @@ expect_failure env MOCK_DOWNLOAD_FAIL=1 bash "$tmp/standalone.sh"
 [[ "$(sha256sum "$target/a30-remote")" == "$before" ]]
 A30_REF=main bash "$tmp/standalone.sh"
 A30_REF=main bash -s < "$root/install.sh"
+# Exercise dependency installation and package-manager failures without sudo/network.
+cat > "$tmp/bin/sudo" <<'MOCK'
+#!/usr/bin/env bash
+exec "$@"
+MOCK
+cat > "$tmp/bin/apt-get" <<'MOCK'
+#!/usr/bin/env bash
+[[ ${MOCK_PACKAGE_FAIL:-0} == 0 ]] || exit 32
+printf '%s\n' "$*" >> "$MOCK_PACKAGE_LOG"
+[[ "$1" != install ]] || touch "$MOCK_UPGRADED_FILE"
+MOCK
+chmod +x "$tmp/bin/sudo" "$tmp/bin/apt-get"
+export MOCK_UPGRADED_FILE="$tmp/upgraded" MOCK_PACKAGE_LOG="$tmp/packages.log"
+env A30_SKIP_DEPENDENCIES=0 MOCK_INITIAL_OLD=1 bash "$root/install.sh"
+[[ -f "$MOCK_UPGRADED_FILE" ]]
+grep -q '^update$' "$MOCK_PACKAGE_LOG"
+grep -q '^install -y adb scrcpy openssh-client python3 curl$' "$MOCK_PACKAGE_LOG"
+rm "$MOCK_UPGRADED_FILE"
+before="$(sha256sum "$target/a30-remote")"
+expect_failure env A30_SKIP_DEPENDENCIES=0 MOCK_INITIAL_OLD=1 MOCK_PACKAGE_FAIL=1 bash "$root/install.sh"
+[[ "$(sha256sum "$target/a30-remote")" == "$before" ]]
 # Opt-in integration check against an already-pushed branch/commit.
 if [[ -n "${A30_TEST_RAW_REF:-}" ]]; then
     rm "$tmp/bin/curl"

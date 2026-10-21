@@ -8,8 +8,9 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Data = Join-Path $env:LOCALAPPDATA 'A30Remote'
 $Key = Join-Path $env:USERPROFILE '.ssh\a30_remote_ed25519'
-$Adb = (Get-Command adb.exe -ErrorAction Stop).Source
-$Scrcpy = (Get-Command scrcpy.exe -ErrorAction Stop).Source
+. (Join-Path $Root 'dependencies.ps1')
+$Adb = Resolve-A30Tool 'adb.exe' $Root
+$Scrcpy = Resolve-A30Tool 'scrcpy.exe' $Root
 $KnownHosts = Join-Path $Root 'known_hosts'
 $Config = Join-Path $Data 'ssh_config'
 $SshHost = 'a30-remote-gateway'
@@ -50,8 +51,7 @@ function Write-SshConfig {
 }
 
 function Test-Ssh {
-    & ssh.exe -F $Config -n -o BatchMode=yes $SshHost true 2>$null
-    return $LASTEXITCODE -eq 0
+    return Test-A30SshConnection $Config $SshHost
 }
 
 function Configure-Ssh {
@@ -63,8 +63,7 @@ function Configure-Ssh {
     $sshDir = Split-Path -Parent $Key
     New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
     if (-not (Test-Path -LiteralPath $Key)) {
-        & ssh-keygen.exe -q -t ed25519 -N '' -C a30-remote-client -f $Key
-        if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar a chave SSH.' }
+        New-A30SshKey $Key
     }
     Write-SshConfig
     $publicKey = [IO.File]::ReadAllText("$Key.pub").Trim()

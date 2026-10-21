@@ -1,5 +1,27 @@
 # Validação do gateway ADB central
 
+## Correção Windows nativo — 21/10/2026
+
+- Reproduzido na máquina Windows: o cliente instalado falhava em
+  `Get-Command adb.exe`, embora scrcpy 4.1 e ADB já estivessem instalados no
+  diretório de pacotes do WinGet. O PATH da sessão não continha esses binários.
+- `install.ps1` foi executado no Windows PowerShell 5.1 e reinstalou o cliente
+  no perfil real. O cliente instalado passou pelo modo ajuda, com a chave SSH
+  existente preservada. O instalador agora localiza pacotes WinGet e salva os
+  caminhos das ferramentas para o cliente.
+- Um launcher antigo aberto impediu a primeira atualização. Confirmado que
+  não havia sessão scrcpy ativa, a instância ociosa foi fechada e a atualização
+  passou. O instalador agora mostra esse bloqueio antes de compilar.
+- `test-windows.ps1` cobre análise sintática, resolução sem PATH, versão
+  incompatível, criação idempotente de chave SSH no PS 5.1 com caminho contendo
+  espaços, recusa SSH sem erro terminante de stderr, modo Check e compilação
+  com payload incorporado. Não instala o fixture no perfil real.
+- O diagnóstico local executou scrcpy/ADB e chegou ao SSH do A30, mas a
+  autenticação desta máquina foi recusada. Não foi confirmada nova sessão de
+  vídeo. O primeiro acesso exige Configurar SSH e credencial autorizada.
+- O Bash Linux agora instala dependências por apt/dnf/pacman quando faltam;
+  seus testes continuam isolados e não instalam pacotes reais.
+
 ## Instalação direta por Bash — 21/10/2026
 
 - `install.sh` instala a partir do clone ou dos fontes raw da `main`; não baixa

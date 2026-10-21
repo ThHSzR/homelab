@@ -6,17 +6,17 @@ if (!$OutputDirectory) { $OutputDirectory = Join-Path $src 'dist' }
 $dist = [IO.Path]::GetFullPath($OutputDirectory)
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (!(Test-Path -LiteralPath $csc)) { throw 'Compilador .NET Framework x64 ausente.' }
-foreach ($dependency in @('ssh.exe','adb.exe','scrcpy.exe')) {
-    if (!(Get-Command $dependency -ErrorAction SilentlyContinue)) { throw "Instale $dependency e adicione ao PATH." }
-}
+. (Join-Path $src 'dependencies.ps1')
+$toolPaths = Test-A30Dependencies $src
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('a30-build-' + [Guid]::NewGuid())
 New-Item -ItemType Directory -Force -Path $stage,$dist | Out-Null
 try {
     $payload = Join-Path $stage 'payload'
     New-Item -ItemType Directory -Path $payload | Out-Null
-    foreach ($file in @('A30-Remote.ps1','Desinstalar.ps1','known_hosts','LEIA-ME.txt')) {
+    foreach ($file in @('A30-Remote.ps1','Desinstalar.ps1','known_hosts','LEIA-ME.txt','dependencies.ps1')) {
         Copy-Item -LiteralPath (Join-Path $src $file) -Destination $payload
     }
+    [IO.File]::WriteAllText((Join-Path $payload 'tool-paths.json'),($toolPaths | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     & $csc /nologo /target:exe /platform:x64 /optimize+ "/out:$payload\A30-Remoto.exe" "$src\Client.cs"
     if ($LASTEXITCODE -ne 0) { throw 'Compilacao do cliente falhou.' }
     Compress-Archive -Path "$payload\*" -DestinationPath "$stage\payload.zip"
