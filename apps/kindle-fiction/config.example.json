@@ -1,0 +1,18 @@
+{
+  "modelPath": "~/models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+  "llamaServerPath": "~/src/llama.cpp/build/bin/llama-server",
+  "dataDir": "data",
+  "chapters": 4,
+  "contextSize": 2048,
+  "tokensPerChapter": 750,
+  "threads": 3,
+  "port": 18089,
+  "temperature": 0.85,
+  "minAvailableMB": 1100,
+  "schedule": {
+    "enabled": false,
+    "intervalDays": 15,
+    "retryHours": 6
+  },
+  "maxBatteryTempC": 42
+}
