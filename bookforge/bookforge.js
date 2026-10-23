@@ -142,10 +142,14 @@ async function stopServer() {
   const child = llama;
   llama = null;
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  child.kill('SIGTERM');
-  const exited = new Promise(resolve => child.once('close', resolve));
-  await Promise.race([exited, sleep(10000)]);
-  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  await new Promise(resolve => {
+    const timer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      resolve();
+    }, 10000);
+    child.once('close', () => { clearTimeout(timer); resolve(); });
+    child.kill('SIGTERM');
+  });
 }
 async function ask(prompt, maxTokens = TOKENS, minChars = 20) {
   for (let attempt = 1; attempt <= 2; attempt++) {
