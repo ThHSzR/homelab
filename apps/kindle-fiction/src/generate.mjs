@@ -114,7 +114,7 @@ async function waitServer(child, port) {
   const deadline = Date.now() + 240000;
   while (Date.now() < deadline) {
     if (child.spawnFailure) throw child.spawnFailure;
-    if (child.exitCode !== null) throw new Error('llama-server encerrou antes de ficar pronto: ' + child.exitCode);
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error('llama-server encerrou antes de ficar pronto: ' + (child.exitCode ?? child.signalCode));
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(2500) });
       if (r.ok) return;
@@ -168,6 +168,14 @@ async function generate() {
     throw e;
   }
   let server;
+  let stopRequested = false;
+  const onStop = () => {
+    stopRequested = true;
+    log('Interrupção solicitada; encerrando modelo para preservar estado');
+    if (server && server.exitCode === null && server.signalCode === null) server.kill('SIGTERM');
+  };
+  process.on('SIGINT', onStop);
+  process.on('SIGTERM', onStop);
   try {
     const stateFile = path.join(c.dataDir, 'current.json');
     const previous = await readOptional(stateFile);
@@ -186,6 +194,7 @@ async function generate() {
     const dir = path.join(c.dataDir, 'books', state.id);
     await fs.mkdir(path.join(dir, 'chapters'), { recursive: true });
     await fs.mkdir(path.join(dir, 'summaries'), { recursive: true });
+    if (stopRequested) throw new Error('Interrompido antes de carregar modelo');
     await guardMemory(c.minAvailableMB);
     guardBatteryTemperature(c.maxBatteryTempC);
     await assertPortFree(c.port);
@@ -209,6 +218,7 @@ async function generate() {
     const title = (titleMatch?.[1] || 'Mistério da Madrugada').trim().slice(0, 100);
     const summaries = [];
     for (let i = 1; i <= c.chapters; i++) {
+      if (stopRequested) throw new Error('Interrompido; capítulos preservados');
       guardBatteryTemperature(c.maxBatteryTempC);
       const num = String(i).padStart(2, '0');
       const chapterFile = path.join(dir, 'chapters', num + '.md');
@@ -258,6 +268,8 @@ async function generate() {
     log('EPUB concluído:', epubFile);
     log('Envio ao Kindle não habilitado neste MVP. Revise o livro antes de enviar.');
   } finally {
+    process.off('SIGINT', onStop);
+    process.off('SIGTERM', onStop);
     await stopServer(server);
     await lock.close();
     await fs.rm(lockPath, { force: true });
