@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Rodar APENAS no Termux do Galaxy A30. Não altera serviços PM2 existentes.
-if [[ -z "$PREFIX" || "$PREFIX" != *"/com.termux/files/usr" ]]; then
+if [[ -z "${PREFIX:-}" || "${PREFIX:-}" != *"/com.termux/files/usr" ]]; then
   echo "Este script exige Termux (não adb shell nem Linux desktop)." >&2
   exit 1
 fi
 echo "Instalando dependências do llama.cpp (nenhum serviço será iniciado)."
-pkg install -y git clang cmake make zip libandroid-spawn
+pkg install -y git clang cmake make zip unzip curl libandroid-spawn
 if ! command -v node >/dev/null 2>&1; then
   pkg install -y nodejs
 fi
