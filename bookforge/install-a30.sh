@@ -8,7 +8,8 @@ if ! command -v pkg >/dev/null 2>&1; then
 fi
 
 echo "[bookforge] Instalando dependencias de compilacao (pode demorar)."
-pkg install -y git clang cmake make curl nodejs
+# Node ja existe no A30; nao atualiza-lo para preservar dashboard e PM2.
+pkg install -y git clang cmake make curl
 
 DATA="$HOME/services/bookforge-data"
 MODEL="$DATA/models/qwen2.5-1.5b-instruct-q4_k_m.gguf"
