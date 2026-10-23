@@ -13,5 +13,6 @@
     "enabled": false,
     "intervalDays": 15,
     "retryHours": 6
-  }
+  },
+  "maxBatteryTempC": 42
 }
