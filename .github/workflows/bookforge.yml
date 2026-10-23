@@ -1,0 +1,29 @@
+name: Bookforge
+on:
+  push:
+    branches: [feat/a30-bookforge-local]
+    paths:
+      - 'bookforge/**'
+      - '.github/workflows/bookforge.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'bookforge/**'
+      - '.github/workflows/bookforge.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate installer shell syntax
+        run: bash -n bookforge/install-a30.sh
+      - name: Validate Node syntax
+        run: |
+          node --check bookforge/bookforge.js
+          node --check bookforge/epub.js
+      - name: Test EPUB builder and safeguards
+        run: node --test bookforge/test/*.test.js
