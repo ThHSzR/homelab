@@ -16,7 +16,7 @@
 - Agendador opcional via PM2, **desligado por padrão**.
 - Nenhuma API paga, chave Amazon, SMTP ou envio externo nesta etapa.
 
-**Limitações:** um modelo 1.5B tem capacidade literária limitada; quatro capítulos curtos formam uma novela de teste, não um romance longo. Não há benchmark real de RAM, desempenho ou estabilidade térmica no A30. O Android pode encerrar processos em segundo plano. O programa não faz controle térmico automático: acompanhe a temperatura e suspenda os testes se aquecer demais.
+**Limitações:** um modelo 1.5B tem capacidade literária limitada; quatro capítulos curtos formam uma novela de teste, não um romance longo. Não há benchmark real de RAM, desempenho ou estabilidade térmica no A30. O Android pode encerrar processos em segundo plano. O programa tenta consultar a temperatura da bateria via Termux:API antes de iniciar e entre capítulos, interrompendo a geração ao atingir `maxBatteryTempC` (42 °C por padrão). Se a leitura estiver indisponível, monitore manualmente; isso não substitui controle térmico do Android.
 
 ## Pré-requisitos
 
@@ -69,7 +69,7 @@ df -h "$HOME"
 termux-battery-status
 ```
 
-O diagnóstico **não inicia a IA**. Se `MemAvailable` estiver abaixo de `minAvailableMB` (1100 MiB por padrão), a geração não começa. Esse limite não garante que o Android não mate o processo; ajuste somente depois de medir.
+O diagnóstico **não inicia a IA**. Se `MemAvailable` estiver abaixo de `minAvailableMB` (1100 MiB por padrão), a geração não começa. Se a temperatura da bateria atingir `maxBatteryTempC`, o worker interrompe e preserva os capítulos para retomada. Esse limite não garante que o Android não mate o processo; ajuste somente depois de medir.
 
 ### 5. Gerar manualmente o primeiro EPUB
 
