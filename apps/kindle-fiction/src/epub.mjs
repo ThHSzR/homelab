@@ -34,7 +34,7 @@ export async function createEpub({ title, author, uuid, chapters, outputPath }) 
   if (!title || !uuid || !Array.isArray(chapters) || !chapters.length) throw new Error('Metadados EPUB inválidos');
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'fiction-epub-'));
   const target = path.resolve(outputPath);
-  const partial = target + '.partial';
+  const partial = target + '.partial.epub';
   try {
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.rm(partial, { force: true });
