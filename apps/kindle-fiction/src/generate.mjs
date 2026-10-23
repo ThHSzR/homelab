@@ -6,6 +6,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -73,6 +74,13 @@ async function guardMemory(minMB) {
   log('RAM disponível estimada:', availableMB.toFixed(0), 'MiB');
   if (availableMB < minMB) throw new Error('RAM disponível abaixo do mínimo (' + minMB + ' MiB). Nenhum modelo foi carregado.');
 }
+async function assertPortFree(port) {
+  await new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', error => reject(new Error('Porta local ' + port + ' indisponível: ' + error.message)));
+    probe.listen(port, '127.0.0.1', () => probe.close(resolve));
+  });
+}
 function startServer(c) {
   const args = ['-m', c.modelPath, '-c', String(c.contextSize), '-t', String(c.threads),
     '-ngl', '0', '-np', '1', '--host', '127.0.0.1', '--port', String(c.port), '--no-warmup'];
@@ -97,13 +105,13 @@ async function waitServer(child, port) {
   throw new Error('llama-server não respondeu em 4 minutos');
 }
 async function stopServer(child) {
-  if (!child || child.exitCode !== null) return;
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
   child.kill('SIGTERM');
   await Promise.race([
     new Promise(resolve => child.once('exit', resolve)),
     delay(8000)
   ]);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
 }
 async function complete(c, messages, maxTokens) {
   const controller = new AbortController();
@@ -160,6 +168,7 @@ async function generate() {
     await fs.mkdir(path.join(dir, 'chapters'), { recursive: true });
     await fs.mkdir(path.join(dir, 'summaries'), { recursive: true });
     await guardMemory(c.minAvailableMB);
+    await assertPortFree(c.port);
     server = startServer(c);
     await waitServer(server, c.port);
 
@@ -186,10 +195,10 @@ async function generate() {
       let chapter = await readOptional(chapterFile);
       if (!chapter) {
         log('Gerando capítulo', i, 'de', c.chapters);
-        const memory = summaries.slice(-5).map((s, j) => 'Resumo anterior ' + (Math.max(1, i - summaries.slice(-5).length) + j) + ':\n' + s.slice(0, 480)).join('\n');
+        const memory = summaries.slice(-3).map((s, j) => 'Resumo anterior ' + (Math.max(1, i - summaries.slice(-3).length) + j) + ':\n' + s.slice(0, 300)).join('\n');
         const prompt = [
           'Romance: ' + title,
-          'PLANO GERAL:\n' + plan.slice(0, 4300),
+          'PLANO GERAL:\n' + plan.slice(0, 2100),
           'CONTINUIDADE:\n' + (memory || 'Início da história.'),
           'Escreva SOMENTE o texto literário do CAPÍTULO ' + i + ' de ' + c.chapters + '.',
           'Use cenas, diálogos naturais, investigação plausível, tensão crescente, detalhes sensoriais e prosa fluida.',
