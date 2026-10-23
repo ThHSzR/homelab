@@ -26,6 +26,7 @@ const SYSTEM = 'Voce e um romancista especializado em suspense criminal. Escreva
 let llama = null;
 let stopping = false;
 let active = false;
+let unlockOnExit = null;
 
 function number(name, fallback, min, max) {
   const raw = process.env[name];
@@ -56,6 +57,31 @@ function atomic(file, value) {
 }
 function writeJson(file, value) { atomic(file, JSON.stringify(value, null, 2) + '\n'); }
 function cut(value, length) { return String(value || '').slice(-length); }
+function batteryTemperatureC() {
+  const result = spawnSync('termux-battery-status', [], {
+    encoding: 'utf8', timeout: 12000, maxBuffer: 10000
+  });
+  if (result.error || result.status !== 0) return null;
+  try {
+    const value = JSON.parse(result.stdout).temperature;
+    return Number.isFinite(value) ? value : null;
+  } catch { return null; }
+}
+async function waitForSafeTemperature() {
+  const limit = number('BOOK_MAX_BATTERY_C', 42, 35, 55);
+  let temperature = batteryTemperatureC();
+  if (temperature === null) {
+    log('Aviso: temperatura da bateria indisponivel; monitore o A30 e use pausas');
+    return;
+  }
+  while (temperature >= limit && !stopping) {
+    log('Bateria a ' + temperature + ' C (limite ' + limit + ' C). Pausando 5 min.');
+    await sleep(5 * 60000);
+    temperature = batteryTemperatureC();
+    if (temperature === null) throw new Error('Sensor de bateria indisponivel apos alerta termico');
+  }
+  if (stopping) throw new Error('Encerramento solicitado');
+}
 function availableMB() {
   const info = read('/proc/meminfo');
   const match = info.match(/^MemAvailable:\s+(\d+)\s+kB/m);
@@ -100,7 +126,7 @@ async function startServer() {
   const deadline = Date.now() + 8 * 60 * 1000;
   while (Date.now() < deadline && !stopping) {
     if (spawnError) throw spawnError;
-    if (llama.exitCode !== null) throw new Error('llama-server encerrou: ' + recentError);
+    if (llama.exitCode !== null || llama.signalCode !== null) throw new Error('llama-server encerrou: ' + recentError);
     try {
       const response = await fetch(URL + '/health', { signal: AbortSignal.timeout(2500) });
       if (response.ok) {
@@ -115,13 +141,13 @@ async function startServer() {
 async function stopServer() {
   const child = llama;
   llama = null;
-  if (!child || child.exitCode !== null) return;
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
   child.kill('SIGTERM');
   const exited = new Promise(resolve => child.once('close', resolve));
   await Promise.race([exited, sleep(10000)]);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
 }
-async function ask(prompt, maxTokens = TOKENS) {
+async function ask(prompt, maxTokens = TOKENS, minChars = 20) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     if (stopping) throw new Error('Encerramento solicitado');
     try {
@@ -137,7 +163,7 @@ async function ask(prompt, maxTokens = TOKENS) {
       if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + cut(await response.text(), 350));
       const payload = await response.json();
       const answer = payload.choices?.[0]?.message?.content;
-      if (typeof answer !== 'string' || answer.trim().length < 20) throw new Error('Resposta vazia/curta');
+      if (typeof answer !== 'string' || answer.trim().length < minChars) throw new Error('Resposta vazia/curta');
       return answer.trim() + '\n';
     } catch (error) {
       log('Tentativa ' + attempt + ' falhou: ' + error.message);
@@ -146,11 +172,11 @@ async function ask(prompt, maxTokens = TOKENS) {
     }
   }
 }
-async function checkpoint(file, prompt, maxTokens) {
+async function checkpoint(file, prompt, maxTokens, minChars = 20) {
   const previous = read(file);
   if (previous.trim()) return previous;
   log('Gerando ' + path.relative(DATA, file));
-  const output = await ask(prompt, maxTokens);
+  const output = await ask(prompt, maxTokens, minChars);
   atomic(file, output);
   return output;
 }
@@ -180,7 +206,7 @@ async function writeBook(dir) {
   const chapters = book.chapters;
   const scenes = book.scenesPerChapter;
   const titleRaw = await checkpoint(path.join(dir, 'title.txt'),
-    'Crie um titulo curto, marcante e inedito para um suspense policial brasileiro contemporaneo. Responda somente com o titulo.', 100);
+    'Crie um titulo curto, marcante e inedito para um suspense policial brasileiro contemporaneo. Responda somente com o titulo.', 100, 2);
   const title = titleRaw.trim().split('\n')[0].replace(/^["#* ]+|["#* ]+$/g, '').slice(0, 110) || 'Misterio sem Nome';
   const bible = await checkpoint(path.join(dir, 'bible.md'),
     'Planeje o romance policial "' + title + '". Crie uma biblia concisa com: cidade ficticia, protagonista, vitima, tres suspeitos, culpado e motivacao secreta, cinco pistas, duas pistas falsas, cronologia, reviravolta e resolucao. Defina a verdade do crime antes de escrever. Use topicos objetivos.', 700);
@@ -202,7 +228,12 @@ async function writeBook(dir) {
         '\nMemoria dos capitulos anteriores:\n' + cut(memory.join('\n'), 1200) +
         '\nTrecho final da cena anterior:\n' + cut(previous, 550) +
         '\nEscreva uma cena dramatizada, com dialogos e acoes, detalhes sensoriais, pistas coerentes, sem titulos nem comentarios metalinguisticos. Nao resolva o misterio antes do capitulo final.';
-      await checkpoint(file, prompt, TOKENS);
+      if (!read(file).trim()) {
+        await waitForSafeTemperature();
+        await checkpoint(file, prompt, TOKENS);
+        const pause = number('BOOK_COOLDOWN_SECONDS', 120, 0, 3600);
+        if (pause) await sleep(pause * 1000);
+      }
     }
     const chapterText = Array.from({ length: scenes }, (_, index) =>
       read(path.join(dir, 'scenes', 'c' + c + '-s' + (index + 1) + '.txt'))).join('\n\n');
@@ -231,7 +262,9 @@ function lock() {
     throw error;
   }
   fs.writeFileSync(path.join(directory, 'owner.json'), JSON.stringify({ pid: process.pid, time: new Date().toISOString() }));
-  return () => fs.rmSync(directory, { recursive: true, force: true });
+  const release = () => fs.rmSync(directory, { recursive: true, force: true });
+  unlockOnExit = release;
+  return () => { release(); unlockOnExit = null; };
 }
 function address(value) { return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value || ''); }
 function submitKindle(dir, manual = false) {
@@ -314,8 +347,14 @@ function status() {
     sendError: fs.existsSync(path.join(dir, 'send-error.json')) }));
   console.log(JSON.stringify({ schedule: json(path.join(DATA, 'schedule.json')), books }, null, 2));
 }
-process.on('SIGTERM', () => { stopping = true; if (llama) llama.kill('SIGTERM'); if (!active) process.exit(0); });
-process.on('SIGINT', () => { stopping = true; if (llama) llama.kill('SIGTERM'); if (!active) process.exit(0); });
+process.on('exit', () => { if (unlockOnExit) { try { unlockOnExit(); } catch {} } });
+function requestStop() {
+  stopping = true;
+  if (llama) llama.kill('SIGTERM');
+  process.exit(0); // exit handler removes our own lock
+}
+process.on('SIGTERM', requestStop);
+process.on('SIGINT', requestStop);
 
 async function main() {
   const command = process.argv[2] || 'help';
