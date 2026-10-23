@@ -26,7 +26,7 @@ test('end-to-end local generation, EPUB and checkpoint resume (fake model only)'
   try {
     const model = path.join(temp, 'fake.gguf');
     const wrapper = path.join(temp, 'llama-server');
-    const fake = path.join(__dirname, 'mock-llama-server.js');
+    const fake = path.join(__dirname, '..', 'fixtures', 'mock-llama-server.js');
     const data = path.join(temp, 'data');
     const script = path.join(__dirname, '..', 'bookforge.js');
     fs.writeFileSync(model, 'GGUF test fixture');
