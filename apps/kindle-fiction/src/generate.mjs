@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createEpub } from './epub.mjs';
@@ -54,6 +54,7 @@ async function loadConfig() {
   c.port = Number(c.port ?? 18089);
   c.minAvailableMB = Number(c.minAvailableMB ?? 1100);
   c.temperature = Number(c.temperature ?? 0.85);
+  c.maxBatteryTempC = Number(c.maxBatteryTempC ?? 42);
   if (!Number.isInteger(c.chapters) || c.chapters < 1 || c.chapters > 30) throw new Error('chapters deve ser 1..30');
   if (!Number.isInteger(c.contextSize) || c.contextSize < 1024 || c.contextSize > 8192) throw new Error('contextSize inválido');
   if (!Number.isInteger(c.tokensPerChapter) || c.tokensPerChapter < 128 || c.tokensPerChapter > c.contextSize - 256) throw new Error('tokensPerChapter deve caber no contexto');
@@ -61,6 +62,7 @@ async function loadConfig() {
   if (!Number.isInteger(c.port) || c.port < 1024 || c.port > 65535) throw new Error('port inválida');
   if (!Number.isFinite(c.minAvailableMB) || c.minAvailableMB < 0) throw new Error('minAvailableMB inválido');
   if (!Number.isFinite(c.temperature) || c.temperature < 0 || c.temperature > 2) throw new Error('temperature inválida');
+  if (!Number.isFinite(c.maxBatteryTempC) || c.maxBatteryTempC < 30 || c.maxBatteryTempC > 55) throw new Error('maxBatteryTempC inválido');
   return c;
 }
 async function guardMemory(minMB) {
@@ -73,6 +75,23 @@ async function guardMemory(minMB) {
   const availableMB = Number(match[1]) / 1024;
   log('RAM disponível estimada:', availableMB.toFixed(0), 'MiB');
   if (availableMB < minMB) throw new Error('RAM disponível abaixo do mínimo (' + minMB + ' MiB). Nenhum modelo foi carregado.');
+}
+function guardBatteryTemperature(limit) {
+  const r = spawnSync('termux-battery-status', [], { encoding: 'utf8', timeout: 7000 });
+  if (r.error || r.status !== 0) {
+    log('Aviso: temperatura da bateria indisponível; monitore manualmente');
+    return;
+  }
+  let battery;
+  try { battery = JSON.parse(r.stdout); }
+  catch { log('Aviso: leitura de bateria inválida'); return; }
+  const temp = Number(battery.temperature);
+  if (!Number.isFinite(temp) || temp <= 0) {
+    log('Aviso: temperatura da bateria não informada');
+    return;
+  }
+  log('Temperatura da bateria:', temp.toFixed(1), '°C');
+  if (temp >= limit) throw new Error('Bateria quente (' + temp + ' °C); geração suspensa. Retome após esfriar.');
 }
 async function assertPortFree(port) {
   await new Promise((resolve, reject) => {
@@ -168,6 +187,7 @@ async function generate() {
     await fs.mkdir(path.join(dir, 'chapters'), { recursive: true });
     await fs.mkdir(path.join(dir, 'summaries'), { recursive: true });
     await guardMemory(c.minAvailableMB);
+    guardBatteryTemperature(c.maxBatteryTempC);
     await assertPortFree(c.port);
     server = startServer(c);
     await waitServer(server, c.port);
@@ -189,6 +209,7 @@ async function generate() {
     const title = (titleMatch?.[1] || 'Mistério da Madrugada').trim().slice(0, 100);
     const summaries = [];
     for (let i = 1; i <= c.chapters; i++) {
+      guardBatteryTemperature(c.maxBatteryTempC);
       const num = String(i).padStart(2, '0');
       const chapterFile = path.join(dir, 'chapters', num + '.md');
       const summaryFile = path.join(dir, 'summaries', num + '.txt');
