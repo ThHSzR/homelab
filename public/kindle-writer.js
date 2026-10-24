@@ -39,6 +39,21 @@
     $('kw-updated').textContent = 'Consultado às ' + new Date().toLocaleTimeString('pt-BR');
     $('kw-worker').textContent = 'Worker: ' + (labels[data.worker?.state] || data.worker?.state || 'Desconhecido');
     $('kw-title').textContent = !data.installed ? 'Kindle Writer não instalado' : book?.title || book?.id || 'Nenhum livro na fila';
+    $('kw-author').textContent = book?.author || '';
+    const hasCover = /^\d{8}-[a-f0-9]{8}-capa\.jpg$/.test(data.cover?.name || '');
+    $('kw-cover').hidden = !hasCover;
+    $('kw-book-heading').classList.toggle('with-cover', hasCover);
+    if (hasCover) {
+      const url = '/api/kindle-writer/covers/' + encodeURIComponent(data.cover.name) +
+        (Number.isFinite(data.cover.version) ? '?v=' + data.cover.version : '');
+      $('kw-cover-image').src = url;
+      $('kw-cover-image').alt = 'Capa de ' + (book?.title || '') + ' — ' + (book?.author || '');
+      $('kw-cover-download').href = url;
+      $('kw-cover-download').download = data.cover.name;
+    } else {
+      $('kw-cover-image').removeAttribute('src');
+      $('kw-cover-download').removeAttribute('href');
+    }
     let state = !data.installed ? 'Instale o Kindle Writer no A30 para acompanhar os livros.' : !book ? 'Aguardando um novo livro.' :
       data.paused ? 'Geração pausada' : book.status === 'falhou' ? 'Etapa interrompida após falhas' :
         data.worker?.state === 'stopped' ? 'Worker parado' :
@@ -118,6 +133,7 @@
       $('kw-inference').textContent = 'Inferência sem leitura recente';
       // Hide stale downloads and live resource claims after a failed refresh.
       $('kw-artifacts').replaceChildren();
+      $('kw-cover').hidden = true;
       $('kw-resources').replaceChildren(line('Leitura atual', 'Indisponível'));
     } finally { busy = false; if (requested !== selected) update(); }
   }

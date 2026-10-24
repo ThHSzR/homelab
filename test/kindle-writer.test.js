@@ -29,6 +29,7 @@ async function fixture(t) {
   await write(`data/${id}/inference/${stamp}.out.txt`, 'Texto parcial gerado no aparelho.');
   await write(`data/${id}/inference/${stamp}.prompt.txt`, 'PRIVATE_PROMPT');
   await write(`books/${id}-amostra.epub`, 'test-epub');
+  await write(`books/${id}-capa.jpg`, 'test-jpeg');
   const processes = () => ({ at: new Date().toISOString(), entries: [{ name: 'kindle-writer', state: 'online', memoryBytes: 30000000, restarts: 2 }] });
   return { root, write, processes };
 }
@@ -44,6 +45,7 @@ test('monitor returns bounded progress, model telemetry and no private configura
   assert.equal(result.lastInference.generationTps, 3.61);
   assert.equal(result.lastInference.batteryC, 32);
   assert.equal(result.artifacts[0].partial, true);
+  assert.equal(result.cover.name, id + '-capa.jpg');
   assert.doesNotMatch(JSON.stringify(result), /NEVER_EXPOSE|PRIVATE_ADDRESS|private-value|PRIVATE_PROMPT/);
   assert.match(result.book.error, /redigido/);
   assert.equal(result.inference, null);
@@ -102,6 +104,11 @@ test('read-only API serves EPUBs and refuses configuration, symlinks and malform
   assert.match(epub.headers.get('content-disposition'), /attachment/);
   assert.match(epub.headers.get('content-type'), /application\/epub\+zip/);
   assert.equal(await epub.text(), 'test-epub');
+  const cover = await fetch(base + '/covers/' + id + '-capa.jpg');
+  assert.equal(cover.status, 200);
+  assert.match(cover.headers.get('content-type'), /image\/jpeg/);
+  assert.equal(await cover.text(), 'test-jpeg');
+  assert.equal((await fetch(base + '/covers/config.json')).status, 400);
   assert.equal((await fetch(base + '/books/config.json')).status, 400);
   assert.equal((await fetch(base + '/status?book=../../config')).status, 400);
   assert.equal((await fetch(base + '/status', { method: 'POST' })).status, 404);

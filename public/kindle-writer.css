@@ -1,4 +1,13 @@
 .kw-section { scroll-margin-top: 26px; }
+.kw-book-heading { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; }
+.kw-book-heading.with-cover { grid-template-columns: minmax(0,1fr) 180px; }
+.kw-book-heading figure { margin: 24px 0 0; }
+.kw-book-heading figure[hidden] { display: none; }
+.kw-book-heading img { width: 180px; height: auto; aspect-ratio: 5/8; border-radius: 5px; box-shadow: 0 12px 34px #0008; }
+.kw-book-heading figcaption { margin-top: 9px; text-align: center; font-size: .75rem; }
+.kw-book-heading figcaption a { color: #bfdbfe; text-decoration: none; }
+.kw-author { color: #e1ccb0; font-size: 1rem; font-weight: 600; }
+.kw-author:empty { display: none; }
 .kw-main h3 { margin: 18px 0 8px; font-size: clamp(1.2rem,3vw,1.8rem); overflow-wrap: anywhere; }
 .kw-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .kw-toolbar button { min-height: 40px; }
@@ -31,6 +40,8 @@
 .kw-section :focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
 @media (max-width: 1000px) { .kw-secondary { grid-template-columns: 1fr; } }
 @media (max-width: 520px) {
+  .kw-book-heading.with-cover { grid-template-columns: minmax(0,1fr) 110px; gap: 12px; }
+  .kw-book-heading img { width: 110px; }
   .kw-stats { gap: 6px; }
   .kw-stats div { padding: 10px; }
   .kw-stats small { font-size: .58rem; }
