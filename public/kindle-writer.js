@@ -82,7 +82,7 @@
     $('kw-resources').replaceChildren(
       line('Memória atual da IA', mib(active?.rssMib)),
       line('Pico desta chamada', mib(active?.peakRssMib)),
-      line('Limite de memória da IA', mib(profile.maxRssMib)),
+      line('Limite de memória da IA', profile.rssLimitDisabled ? 'Sem teto configurado' : mib(profile.maxRssMib)),
       line('Reserva mínima do Android', mib(profile.reserveMib)),
       line('Contexto / threads', (active?.context || profile.context || '—') + ' / ' + (active?.threads || profile.threads || '—')),
       line('Última geração', previous?.generationTps != null ? previous.generationTps.toLocaleString('pt-BR') + ' tokens/s' : '—'),

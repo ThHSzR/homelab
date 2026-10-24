@@ -65,6 +65,15 @@ test('failures invalidate live readings and do not keep stale download actions',
   assert.doesNotMatch(d.getElementById('kw-resources').textContent, /980/);
 });
 
+test('explicitly unlimited RSS is distinguished from unavailable telemetry', async t => {
+  const data = sample();
+  data.profile.maxRssMib = null;
+  data.profile.rssLimitDisabled = true;
+  assert.match((await ui(t, data)).w.document.getElementById('kw-resources').textContent, /Sem teto configurado/);
+  data.profile.rssLimitDisabled = false;
+  assert.doesNotMatch((await ui(t, data)).w.document.getElementById('kw-resources').textContent, /Sem teto configurado/);
+});
+
 test('resource pauses, failed books and an absent installation are explicit', async t => {
   const paused = sample(); paused.paused = true;
   assert.match((await ui(t, paused)).w.document.getElementById('kw-state').textContent, /pausada/);
