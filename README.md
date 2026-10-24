@@ -52,6 +52,8 @@ O menu **Livros com IA** acompanha o [Kindle Writer](https://github.com/ThHSzR/k
 
 Abra **Logs ao vivo → Acompanhar geração** para alternar entre eventos/erros e saída parcial do modelo. Os dados do painel atualizam a cada 15 segundos; o log aberto, a cada 5 segundos. Abas ocultas suspendem as consultas e **Pausar log** suspende apenas o acompanhamento. A geração continua no telefone. O download de amostra/livro aparece quando o EPUB existir.
 
+A capa ilustrada e o pseudônimo aparecem ao lado do título, com download do JPEG. A imagem é gerada pelo Kindle Writer e já vem incorporada ao EPUB. `GET /api/kindle-writer/covers/ID-capa.jpg` aceita somente esse padrão de nome, com a mesma proteção de acesso e rejeição de links simbólicos dos demais arquivos.
+
 A integração usa apenas leitura de arquivos e a coleta PM2 já existente. Não inicia inferência, não cria outro worker, não altera a fila e não envia mensagens. A configuração privada é lida somente para extrair o nome do modelo e limites numéricos/indicadores de envio; credenciais, destinatários, prompts, banco e caminhos privados não são retornados. Logs têm limite de 16 KiB/120 linhas e redação de segredos conhecidos. Downloads aceitam somente nomes EPUB previstos, dentro de `books/`, com rejeição de links simbólicos.
 
 Rotas de leitura, sob a mesma proteção de acesso do dashboard:
