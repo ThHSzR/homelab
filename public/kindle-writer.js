@@ -24,6 +24,8 @@
     if (fixed[value]) return fixed[value];
     const scene = /^chapter-(\d+)-scene-([12])$/.exec(value);
     if (scene) return 'Capítulo ' + Number(scene[1]) + ' · cena ' + scene[2] + '/2';
+    const edited = /^humanize-(\d+)-([12])$/.exec(value);
+    if (edited) return 'Edição da prosa · capítulo ' + Number(edited[1]) + ' · cena ' + edited[2] + '/2';
     const stage = /^(plan|review|summary|chapter)-(\d+)$/.exec(value);
     return stage ? ({ plan: 'Plano', review: 'Revisão', summary: 'Resumo', chapter: 'Capítulo salvo' }[stage[1]]) + ' · capítulo ' + Number(stage[2]) : value;
   }

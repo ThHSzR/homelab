@@ -136,3 +136,18 @@ test('a complete eight-chapter book reaches 100% without counting rejected attem
   assert.equal(progress(steps, 8).percent, 100);
   assert.equal(progress(steps, 8).written, 8);
 });
+
+test('Humanizer editions count the additional scene edits without changing legacy totals', () => {
+  const steps = ['concept', 'bible', 'bible-detail', 'bible-canon', 'final'];
+  for (let i = 1; i <= 8; i++) {
+    const n = String(i).padStart(2, '0');
+    steps.push('plan-' + n, 'chapter-' + n + '-scene-1', 'chapter-' + n + '-scene-2',
+      'review-' + n, 'summary-' + n, 'chapter-' + n);
+  }
+  assert.equal(progress(steps, 8, 2).total, 69);
+  assert.ok(progress(steps, 8, 2).percent < 100);
+  for (let i = 1; i <= 8; i++) for (const scene of [1, 2]) steps.push(`humanize-${String(i).padStart(2, '0')}-${scene}`);
+  assert.equal(progress(steps, 8, 2).percent, 100);
+  assert.equal(progress(steps, 8).total, 53);
+  assert.equal(progress(steps, 8).percent, 100);
+});
