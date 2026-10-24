@@ -1,0 +1,106 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -Eeuo pipefail
+
+BASE="${A30_GATEWAY_HOME:-$HOME/.local/share/a30-remote-gateway}"
+ADB_HOME="$BASE/home"
+ADB_SOCKET="${A30_GATEWAY_ADB_SOCKET:-$BASE/adb.sock}"
+EXPECTED_SERIAL="${A30_EXPECTED_SERIAL:-RQ8M70A9WBP}"
+ADB="${PREFIX:-/data/data/com.termux/files/usr}/bin/adb"
+STATE="$BASE/device-serial"
+
+export HOME="$ADB_HOME"
+export ANDROID_SDK_HOME="$ADB_HOME"
+mkdir -p "$ADB_HOME/.android"
+chmod 700 "$BASE" "$ADB_HOME" "$ADB_HOME/.android"
+
+fail() {
+    printf 'ERRO: %s\n' "$*" >&2
+    return 1
+}
+
+adb_cmd() {
+    ADB_SERVER_SOCKET="localfilesystem:$ADB_SOCKET" "$ADB" "$@"
+}
+
+valid_device() {
+    local serial="$1" actual model
+    [[ "$(adb_cmd -s "$serial" get-state 2>/dev/null || true)" == device ]] || return 1
+    actual="$(adb_cmd -s "$serial" shell getprop ro.serialno 2>/dev/null | tr -d '\r')"
+    model="$(adb_cmd -s "$serial" shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
+    [[ "$actual" == "$EXPECTED_SERIAL" && "$model" == SM-A305GT ]]
+}
+
+remember() {
+    printf '%s\n' "$1" > "$STATE"
+    chmod 600 "$STATE"
+    printf '%s\n' "$1"
+}
+
+connect_candidate() {
+    local endpoint="$1"
+    [[ -n "$endpoint" ]] || return 1
+    adb_cmd connect "$endpoint" >/dev/null 2>&1 || true
+    valid_device "$endpoint" && remember "$endpoint"
+}
+
+find_device() {
+    local candidate service_line
+
+    if [[ -f "$STATE" ]]; then
+        candidate="$(head -n 1 "$STATE")"
+        if valid_device "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    fi
+
+    if connect_candidate 127.0.0.1:5555; then
+        return 0
+    fi
+
+    while IFS= read -r service_line; do
+        candidate="$(printf '%s\n' "$service_line" | awk '{print $3}')"
+        if connect_candidate "$candidate"; then
+            return 0
+        fi
+    done < <(adb_cmd mdns services 2>/dev/null | awk '$2 ~ /^_adb-tls-connect\._tcp$/ || $2 ~ /^_adb\._tcp$/')
+
+    while IFS= read -r candidate; do
+        if valid_device "$candidate"; then
+            remember "$candidate"
+            return 0
+        fi
+    done < <(adb_cmd devices | awk 'NR > 1 && $2 == "device" {print $1}')
+
+    fail 'O gateway ADB nao encontrou o Galaxy A30 autorizado.'
+}
+
+start() {
+    [[ -x "$ADB" ]] || { fail "adb nao encontrado em $ADB"; return 1; }
+    [[ -f "$ADB_HOME/.android/adbkey" ]] || {
+        fail 'Gateway nao provisionado: falta a identidade ADB privada no Termux.'
+        return 1
+    }
+    chmod 600 "$ADB_HOME/.android/adbkey"
+    [[ ! -f "$ADB_HOME/.android/adbkey.pub" ]] || chmod 600 "$ADB_HOME/.android/adbkey.pub"
+    [[ ! -f "$ADB_HOME/.android/adb_known_hosts.pb" ]] || chmod 600 "$ADB_HOME/.android/adb_known_hosts.pb"
+    # Encerra o listener TCP legado antes de iniciar o servidor no socket Unix.
+    "$ADB" -P 5038 kill-server >/dev/null 2>&1 || true
+    adb_cmd start-server >/dev/null
+    find_device
+}
+
+status() {
+    local serial
+    serial="$(find_device)" || return 1
+    printf 'serial=%s\n' "$serial"
+    adb_cmd -s "$serial" shell 'printf "model="; getprop ro.product.model; printf "serial="; getprop ro.serialno; printf "android="; getprop ro.build.version.release'
+    printf 'adb_server=unix:%s\n' "$ADB_SOCKET"
+}
+
+case "${1:-start}" in
+    start) start ;;
+    status) start >/dev/null && status ;;
+    stop) adb_cmd kill-server >/dev/null 2>&1 || true; rm -f -- "$ADB_SOCKET" ;;
+    *) fail 'Uso: a30-adb-gateway {start|status|stop}'; exit 2 ;;
+esac

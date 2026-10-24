@@ -5,6 +5,14 @@ on:
   push:
     branches: [main]
 jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native Windows installer
+        shell: powershell
+        run: ./tools/a30-remote/test-windows.ps1
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -14,5 +22,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Validate A30 remote shell scripts
+        run: |
+          for script in tools/a30-remote/a30-remote tools/a30-remote/a30-adb-gateway tools/a30-remote/*.sh; do bash -n "$script"; done
+          shellcheck tools/a30-remote/a30-remote tools/a30-remote/a30-adb-gateway tools/a30-remote/*.sh
+          bash tools/a30-remote/test-install.sh
+      - name: Execute generated remote commands on Linux
+        shell: pwsh
+        run: ./tools/a30-remote/test-remote.ps1
       - run: npm ci
       - run: npm test

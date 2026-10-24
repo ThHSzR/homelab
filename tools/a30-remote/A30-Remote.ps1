@@ -1,168 +1,229 @@
-param([ValidateSet('menu','conectar','usb','configurar-ssh','diagnostico','desativar-adb','testar','ajuda')][string]$Action='menu')
+[CmdletBinding()]
+param(
+    [ValidateSet('menu', 'conectar', 'testar', 'configurar-ssh', 'diagnostico', 'ajuda')]
+    [string]$Action = 'menu'
+)
+
 $ErrorActionPreference = 'Stop'
-$adb = Join-Path $PSScriptRoot 'bin\adb.exe'
-$scrcpy = Join-Path $PSScriptRoot 'bin\scrcpy.exe'
-$ssh = (Get-Command ssh.exe -ErrorAction SilentlyContinue).Source
-if (!$ssh) { throw 'OpenSSH Client ausente. Instale o recurso OpenSSH Client do Windows e abra novamente.' }
-$dataRoot = Join-Path $env:LOCALAPPDATA 'A30Remote'
-New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
-$key = Join-Path $env:USERPROFILE '.ssh\a30_remote_ed25519'
-$config = Join-Path $dataRoot 'ssh_config'
-$destination = '100.65.49.34'
-$serial = 'RQ8M70A9WBP'
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Data = Join-Path $env:LOCALAPPDATA 'A30Remote'
+$Key = Join-Path $env:USERPROFILE '.ssh\a30_remote_ed25519'
+. (Join-Path $Root 'dependencies.ps1')
+$Adb = Resolve-A30Tool 'adb.exe' $Root
+$Scrcpy = Resolve-A30Tool 'scrcpy.exe' $Root
+$KnownHosts = Join-Path $Root 'known_hosts'
+$Config = Join-Path $Data 'ssh_config'
+$SshHost = 'a30-remote-gateway'
+$Dest = '100.65.49.34'
+$RemoteAdbSocket = '/data/data/com.termux/files/home/.local/share/a30-remote-gateway/adb.sock'
+$ExpectedSerial = 'RQ8M70A9WBP'
+
+New-Item -ItemType Directory -Force -Path $Data | Out-Null
+if (-not (Test-Path -LiteralPath $Adb)) { throw "ADB ausente: $Adb" }
+if (-not (Test-Path -LiteralPath $Scrcpy)) { throw "scrcpy ausente: $Scrcpy" }
+if (-not (Get-Command ssh.exe -ErrorAction SilentlyContinue)) {
+    throw 'OpenSSH Client ausente. Instale o recurso OpenSSH Client do Windows.'
+}
+
+function Convert-ToSshPath([string]$Path) {
+    return $Path.Replace('\', '/')
+}
 
 function Write-SshConfig {
-    $known = (Join-Path $PSScriptRoot 'known_hosts').Replace('\','/')
-    $lines = @('Host 100.65.49.34','  HostName 100.65.49.34','  Port 8022','  User u0_a267','  HostKeyAlgorithms ssh-ed25519','  StrictHostKeyChecking yes',('  UserKnownHostsFile "'+$known+'"'),'  ConnectTimeout 10','  ServerAliveInterval 20','  ServerAliveCountMax 3')
-    if (Test-Path -LiteralPath $key) { $lines += '  IdentityFile "'+$key.Replace('\','/')+'"' }
-    $lines += 'Include "'+(Join-Path $env:USERPROFILE '.ssh\config').Replace('\','/')+'"'
-    [IO.File]::WriteAllLines($config,$lines,(New-Object Text.UTF8Encoding($false)))
+    $lines = @(
+        "Host $SshHost $Dest"
+        "  HostName $Dest"
+        '  Port 8022'
+        '  User u0_a267'
+        '  HostKeyAlgorithms ssh-ed25519'
+        '  StrictHostKeyChecking yes'
+        "  UserKnownHostsFile `"$(Convert-ToSshPath $KnownHosts)`""
+        '  ConnectTimeout 10'
+        '  ServerAliveInterval 20'
+        '  ServerAliveCountMax 3'
+    )
+    if (Test-Path -LiteralPath $Key) {
+        $lines += "  IdentityFile `"$(Convert-ToSshPath $Key)`""
+    }
+    $userConfig = Join-Path $env:USERPROFILE '.ssh\config'
+    $lines += "Include `"$(Convert-ToSshPath $userConfig)`""
+    [IO.File]::WriteAllLines($Config, $lines, [Text.UTF8Encoding]::new($false))
 }
-Write-SshConfig
 
 function Test-Ssh {
-    & $ssh -F $config -o BatchMode=yes $destination true
-    return ($LASTEXITCODE -eq 0)
+    return Test-A30SshConnection $Config $SshHost
 }
-function Setup-Ssh {
-    if (Test-Ssh) { Write-Host 'SSH ja autorizado nesta maquina.'; return }
-    if (!(Test-Path -LiteralPath $key)) {
-        New-Item -ItemType Directory -Force -Path (Split-Path $key) | Out-Null
-        $generator = (Get-Command ssh-keygen.exe -ErrorAction Stop).Source
-        $info = New-Object Diagnostics.ProcessStartInfo
-        $info.FileName = $generator
-        $info.Arguments = '-q -t ed25519 -N "" -C "a30-remote-client" -f "'+$key+'"'
-        $info.UseShellExecute = $false
-        $process = [Diagnostics.Process]::Start($info)
-        $process.WaitForExit()
-        if ($process.ExitCode -ne 0) { throw 'Falha ao criar chave SSH local.' }
+
+function Configure-Ssh {
+    Write-SshConfig
+    if (Test-Ssh) {
+        Write-Host 'SSH ja autorizado nesta maquina.'
+        return
+    }
+    $sshDir = Split-Path -Parent $Key
+    New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+    if (-not (Test-Path -LiteralPath $Key)) {
+        New-A30SshKey $Key
     }
     Write-SshConfig
-    $public = (Get-Content -LiteralPath ($key+'.pub') -Raw).Trim()
-    if ($public -notmatch '^ssh-ed25519 [A-Za-z0-9+/=]+( .*)?$') { throw 'Chave publica invalida.' }
-    Write-Host 'Autorize esta maquina com a senha SSH do Termux (a senha nao sera salva).'
-    Write-Host 'Se o Termux nao tem senha configurada, execute passwd nele primeiro.'
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($public))
-    $enroll = @'
-set -e
-umask 077
-mkdir -p "$HOME/.ssh"
-touch "$HOME/.ssh/authorized_keys"
-k=$(printf '%s' '__KEY__' | base64 -d)
-grep -qxF "$k" "$HOME/.ssh/authorized_keys" || printf '\n%s\n' "$k" >> "$HOME/.ssh/authorized_keys"
-chmod 700 "$HOME/.ssh"
-chmod 600 "$HOME/.ssh/authorized_keys"
-'@.Replace('__KEY__',$encoded)
-    $enroll | & $ssh -F $config -o BatchMode=no $destination sh -s
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Chave publica desta maquina: $public"
-        throw 'Nao foi possivel cadastrar a chave. Adicione a chave publica ao ~/.ssh/authorized_keys do Termux e tente novamente. Nunca copie a chave privada de outro computador.'
+    $publicKey = [IO.File]::ReadAllText("$Key.pub").Trim()
+    if ($publicKey -notmatch '^ssh-ed25519 [A-Za-z0-9+/=]+( .*)?$') {
+        throw 'Chave publica SSH invalida.'
     }
-    if (!(Test-Ssh)) { throw 'A chave foi enviada, mas o SSH sem senha ainda nao funcionou.' }
-    Write-Host 'SSH configurado. A chave privada ficou somente nesta maquina.'
+    Write-Host 'Digite a senha SSH do Termux para cadastrar somente a chave publica desta maquina.'
+    $remote = Get-A30KeyRegistrationCommand $publicKey
+    & ssh.exe -F $Config -o BatchMode=no $SshHost $remote
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Ssh)) {
+        Write-Host "Chave publica desta maquina: $publicKey"
+        throw 'A autenticacao SSH por chave falhou. Cadastre a chave publica mostrada em authorized_keys.'
+    }
+    Write-Host 'SSH configurado. Nenhuma autorizacao ADB no celular e necessaria.'
 }
-function Prepare-Usb {
-    $devices = & $adb devices
-    if (!($devices -match ('^'+[regex]::Escape($serial)+'\s+device\s*$'))) { throw 'Conecte o A30 por USB nesta maquina e aceite a autorizacao ADB no Android.' }
-    & $adb -s $serial tcpip 5555
-    if ($LASTEXITCODE -ne 0) { throw 'Android recusou ADB TCP.' }
+
+function Get-FreeLocalPort {
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    $listener.Start()
+    try { return ([Net.IPEndPoint]$listener.LocalEndpoint).Port }
+    finally { $listener.Stop() }
+}
+
+function Start-Gateway {
+    if (-not (Test-Ssh)) { throw 'Entre na Tailnet e execute Configurar SSH.' }
+    $output = & ssh.exe -F $Config -n -o BatchMode=yes $SshHost '$HOME/.local/bin/a30-adb-gateway start'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'O gateway ADB central do Termux nao iniciou. Execute o provisionamento unico.'
+    }
+    $serial = @($output)[-1].Trim()
+    if ($serial -notmatch '^[A-Za-z0-9._:-]+$') { throw 'O gateway retornou um serial invalido.' }
+    return $serial
+}
+
+function Get-FreeRemotePort {
+    $raw = & ssh.exe -F $Config -n -o BatchMode=yes $SshHost (Get-A30FreePortCommand)
+    if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel reservar a porta remota do scrcpy.' }
+    return [int]$raw.Trim()
+}
+
+function Start-Tunnel([int]$AdbLocal, [int]$StreamLocal, [int]$StreamRemote) {
+    $errorLog = Join-Path $Data 'ssh-session.log'
+    $arguments = "-F `"$Config`" -n -o BatchMode=yes -o ExitOnForwardFailure=yes -N -T " +
+        "-L 127.0.0.1:${AdbLocal}:$RemoteAdbSocket " +
+        "-L 127.0.0.1:${StreamLocal}:127.0.0.1:$StreamRemote $SshHost"
+    $process = Start-Process -FilePath 'ssh.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardError $errorLog
     Start-Sleep -Seconds 2
+    if ($process.HasExited) {
+        $details = if (Test-Path -LiteralPath $errorLog) { Get-Content -LiteralPath $errorLog -Raw } else { '' }
+        throw "O tunel SSH nao iniciou. $details"
+    }
+    return $process
 }
-function Run-Session([bool]$disable,[bool]$smoke) {
-    if (!(Test-Ssh)) { throw 'SSH indisponivel. Entre na mesma tailnet e use Configurar SSH no menu.' }
-    $probe = @'
-python -c 'import socket; s=socket.create_connection(("127.0.0.1",5555),5); s.close()'
-'@
-    $probe | & $ssh -F $config -o BatchMode=yes $destination sh -s
-    if ($LASTEXITCODE -ne 0) { throw 'ADB TCP do A30 desligado. Conecte USB em uma maquina autorizada e ative TCP 5555; nao e necessario root.' }
-    $reservation = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback,0)
-    $reservation.Start(); $port = $reservation.LocalEndpoint.Port; $reservation.Stop()
-    $endpoint = '127.0.0.1:'+$port
-    $sshArgs = '-F "'+$config+'" -N -T -o BatchMode=yes -o ExitOnForwardFailure=yes -L 127.0.0.1:'+ $port +':127.0.0.1:5555 '+$destination
+
+function Invoke-Session([bool]$TestOnly) {
+    Write-SshConfig
+    $remoteSerial = Start-Gateway
+    $adbLocal = Get-FreeLocalPort
+    do { $streamLocal = Get-FreeLocalPort } while ($streamLocal -eq $adbLocal)
+    $streamRemote = Get-FreeRemotePort
     $tunnel = $null
+    $oldSocket = $env:ADB_SERVER_SOCKET
     $oldAdb = $env:ADB
     try {
-        $tunnel = Start-Process -FilePath $ssh -ArgumentList $sshArgs -WindowStyle Hidden -RedirectStandardError "$dataRoot\ssh-session.log" -PassThru
-        Start-Sleep -Seconds 2
-        if ($tunnel.HasExited) { throw "Falha no tunel: $(Get-Content "$dataRoot\ssh-session.log" -Raw)" }
-        & $adb connect $endpoint
-        Write-Host 'Se aparecer uma solicitacao ADB no A30, aceite a chave desta maquina.'
-        $authorized = $false
-        for ($attempt=0; $attempt -lt 30; $attempt++) {
-            $devices = & $adb devices
-            if ($devices -match ('^'+[regex]::Escape($endpoint)+'\s+device\s*$')) { $authorized=$true; break }
-            if ($tunnel.HasExited) { break }
-            Start-Sleep -Seconds 1
+        $tunnel = Start-Tunnel $adbLocal $streamLocal $streamRemote
+        $env:ADB_SERVER_SOCKET = "tcp:127.0.0.1:$adbLocal"
+        $env:ADB = $Adb
+        $state = (& $Adb -s $remoteSerial get-state 2>$null).Trim()
+        if ($state -ne 'device') { throw 'O servidor ADB central nao apresentou o A30.' }
+        $actual = (& $Adb -s $remoteSerial shell getprop ro.serialno).Trim()
+        $model = (& $Adb -s $remoteSerial shell getprop ro.product.model).Trim()
+        if ($actual -ne $ExpectedSerial -or $model -ne 'SM-A305GT') {
+            throw 'O aparelho recebido nao e o Galaxy A30 esperado.'
         }
-        if (!$authorized) { throw 'ADB TCP nao autorizado. Aceite a chave no Android ou autorize esta maquina por USB. As chaves existentes foram preservadas.' }
-        $actual = & $adb -s $endpoint shell getprop ro.serialno
-        if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne $serial) { throw 'O aparelho recebido nao e o A30 esperado.' }
-        if ($disable) {
-            & $adb -s $endpoint usb
-            if ($LASTEXITCODE -ne 0) { throw 'Falha ao desativar ADB TCP.' }
-            Start-Sleep -Seconds 2
-            $closedProbe = @'
-python -c 'import socket,sys; s=socket.socket(); s.settimeout(3); r=s.connect_ex(("127.0.0.1",5555)); s.close(); sys.exit(0 if r else 1)'
-'@
-            $closedProbe | & $ssh -F $config -o BatchMode=yes $destination sh -s
-            if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel confirmar o fechamento de 5555.' }
-            Write-Host 'ADB TCP desativado. Para conectar novamente, reative por USB.'
-            return
+        $screenArgs = @(
+            "--serial=$remoteSerial", '--force-adb-forward', "--port=$streamRemote",
+            '--tunnel-host=127.0.0.1', "--tunnel-port=$streamLocal", '--no-audio',
+            '--max-size=1280', '--max-fps=30', '--video-bit-rate=4M',
+            '--keyboard=sdk', '--mouse=sdk', '--window-title=A30-Remoto', '--verbosity=debug'
+        )
+        if ($TestOnly) { $screenArgs += '--time-limit=6' }
+        Write-Host 'Abrindo tela pelo gateway ADB central do Termux.'
+        $stdout = Join-Path $Data 'scrcpy.stdout.log'
+        $stderr = Join-Path $Data 'scrcpy.stderr.log'
+        $screen = Start-Process -FilePath $Scrcpy -ArgumentList $screenArgs -WorkingDirectory (Split-Path $Scrcpy) -WindowStyle Normal -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -Wait
+        if ($screen.ExitCode -ne 0) { throw "scrcpy falhou. Consulte $stderr" }
+        if ($TestOnly -and -not ((Get-Content $stdout, $stderr -Raw) -match 'Texture')) {
+            throw 'Teste terminou sem confirmar a decodificacao de video.'
         }
-        Write-Host 'Abrindo tela. Fechar o scrcpy encerra este tunel, mantendo ADB TCP para reconectar.'
-        $env:ADB = $adb
-        $screenArgs = @("--serial=$endpoint",'--force-adb-forward','--no-audio','--max-size=1280','--max-fps=30','--video-bit-rate=4M','--keyboard=sdk','--mouse=sdk','--window-title=A30-Remoto','--verbosity=debug')
-        if ($smoke) { $screenArgs += '--time-limit=6' }
-        $screen = Start-Process -FilePath $scrcpy -ArgumentList $screenArgs -WorkingDirectory (Split-Path $scrcpy) -WindowStyle Normal -RedirectStandardOutput "$dataRoot\scrcpy.stdout.log" -RedirectStandardError "$dataRoot\scrcpy.stderr.log" -PassThru -Wait
-        if ($screen.ExitCode -ne 0) { throw "scrcpy falhou. Consulte $dataRoot\scrcpy.stderr.log" }
-        if ($smoke -and !((Get-Content "$dataRoot\scrcpy.stdout.log" -Raw) -match 'Texture')) { throw 'Teste terminou sem confirmar decodificacao de video.' }
         Write-Host 'Sessao concluida.'
-    } finally {
+    }
+    finally {
+        if ($env:ADB_SERVER_SOCKET -and $remoteSerial -and $streamRemote) {
+            $previousPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'SilentlyContinue'
+                & $Adb -s $remoteSerial forward --remove "tcp:$streamRemote" 2>$null | Out-Null
+            } finally { $ErrorActionPreference = $previousPreference }
+        }
+        if ($tunnel -and -not $tunnel.HasExited) {
+            Stop-Process -Id $tunnel.Id -Force -ErrorAction SilentlyContinue
+        }
+        $env:ADB_SERVER_SOCKET = $oldSocket
         $env:ADB = $oldAdb
-        & $adb disconnect $endpoint
-        if ($tunnel -and !$tunnel.HasExited) { $tunnel.Kill(); $tunnel.WaitForExit() }
     }
 }
-function Diagnostics {
-    & $adb version
-    & $scrcpy --version
-    & $adb devices -l
-    if (!(Test-Ssh)) { throw 'SSH nao autorizado ou tailnet indisponivel.' }
-    & $ssh -F $config -o BatchMode=yes $destination 'getprop ro.product.model; getprop service.adb.tcp.port'
-    if ($LASTEXITCODE -ne 0) { throw 'Falha no diagnostico SSH.' }
-    Write-Host 'SSH e chave do servidor conferidos. Nenhum servico remoto foi alterado.'
+
+function Invoke-Diagnostics {
+    Write-SshConfig
+    & $Adb version
+    & $Scrcpy --version
+    if (-not (Test-Ssh)) { throw 'SSH nao autorizado ou Tailnet indisponivel.' }
+    & ssh.exe -F $Config -n -o BatchMode=yes $SshHost '$HOME/.local/bin/a30-adb-gateway status'
+    if ($LASTEXITCODE -ne 0) { throw 'Gateway ADB central indisponivel.' }
+    Write-Host 'SSH e gateway ADB central conferidos.'
 }
-function Execute-Action([string]$choice) {
-    switch ($choice) {
-        'conectar' { Run-Session $false $false }
-        'usb' { Prepare-Usb; Run-Session $false $false }
-        'configurar-ssh' { Setup-Ssh }
-        'diagnostico' { Diagnostics }
-        'desativar-adb' { Run-Session $true $false }
-        'testar' { Run-Session $false $true }
-        'ajuda' { Get-Content (Join-Path $PSScriptRoot 'LEIA-ME.txt') -Encoding UTF8 }
+
+function Show-Help {
+    Get-Content (Join-Path $Root 'LEIA-ME.txt') -Encoding UTF8
+}
+
+function Execute-Action([string]$Choice) {
+    switch ($Choice) {
+        'conectar' { Invoke-Session $false }
+        'testar' { Invoke-Session $true }
+        'configurar-ssh' { Configure-Ssh }
+        'diagnostico' { Invoke-Diagnostics }
+        'ajuda' { Show-Help }
     }
 }
+
+Write-SshConfig
+$lock = $null
 try {
-    $lock = New-Object Threading.Mutex($false,'Local\A30RemoteClient')
-    if (!$lock.WaitOne(0)) { throw 'O A30 Remoto ja esta aberto nesta sessao do Windows.' }
-    if ($Action -ne 'menu') { Execute-Action $Action; exit 0 }
+    $lock = New-Object Threading.Mutex($false, 'Local\A30RemoteClient')
+    if (-not $lock.WaitOne(0)) { throw 'O A30 Remoto ja esta aberto nesta sessao do Windows.' }
+    if ($Action -ne 'menu') {
+        Execute-Action $Action
+        exit 0
+    }
     while ($true) {
-        Write-Host "`nA30 REMOTO - SSH pela tailnet"
+        Write-Host "`nA30 REMOTO - gateway ADB central pelo Termux"
         Write-Host '1 Conectar tela'
-        Write-Host '2 Ativar ADB TCP por USB e conectar'
-        Write-Host '3 Configurar SSH desta maquina'
-        Write-Host '4 Diagnostico'
-        Write-Host '5 Desativar ADB TCP (exige USB para voltar)'
-        Write-Host '6 Instrucoes'
+        Write-Host '2 Configurar SSH desta maquina'
+        Write-Host '3 Diagnostico'
+        Write-Host '4 Instrucoes'
         Write-Host '0 Sair'
         $selection = Read-Host 'Opcao'
         if ($selection -eq '0') { break }
-        $map = @{'1'='conectar';'2'='usb';'3'='configurar-ssh';'4'='diagnostico';'5'='desativar-adb';'6'='ajuda'}
-        if (!$map.ContainsKey($selection)) { continue }
-        if ($selection -eq '5' -and (Read-Host 'Isso corta o acesso remoto ADB. Digite DESATIVAR para continuar') -cne 'DESATIVAR') { continue }
-        try { Execute-Action $map[$selection] } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+        $map = @{'1'='conectar'; '2'='configurar-ssh'; '3'='diagnostico'; '4'='ajuda'}
+        if (-not $map.ContainsKey($selection)) { continue }
+        try { Execute-Action $map[$selection] }
+        catch { Write-Host $_.Exception.Message -ForegroundColor Red }
     }
     exit 0
-} catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 1 }
-finally { if ($lock) { $lock.Dispose() } }
+}
+catch {
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    exit 1
+}
+finally {
+    if ($lock) { $lock.Dispose() }
+}

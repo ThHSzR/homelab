@@ -69,7 +69,7 @@ Se o aplicativo ainda não estiver instalado, o painel informa isso sem prejudic
 
 ## Tecnologias
 
-O acesso remoto à tela do Galaxy A30 tem [instaladores para Windows e Linux](tools/a30-remote/README.md), com ADB + scrcpy pelo SSH na tailnet.
+O acesso remoto à tela do Galaxy A30 tem [instaladores nativos de um comando: PowerShell no Windows e Bash no Linux](tools/a30-remote/README.md), com ADB + scrcpy por um gateway central no Termux. Os scripts instalam dependências quando faltam; no Windows, reconhecem o scrcpy/ADB do WinGet mesmo sem PATH atualizado. Depois do provisionamento único, máquinas novas precisam de Tailnet e autorização SSH, sem USB ou outra autorização ADB na tela do celular.
 
 - Android
 - Termux

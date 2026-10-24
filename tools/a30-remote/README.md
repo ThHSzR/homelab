@@ -1,53 +1,88 @@
 # A30 Remoto
 
-Instaladores por usuário para acessar a tela do Galaxy A30 pelo SSH na tailnet. Incluem ADB e scrcpy 5.0.1. Não exigem root, não reiniciam o telefone e não alteram serviços PM2.
+Acesso à tela do A30 por scrcpy, com gateway ADB no Termux e transporte SSH pela Tailnet. Instalação nativa: PowerShell no Windows e Bash no Linux. Os instaladores e fontes são versionados na `main`.
 
-[Baixar a versão 1.0.0](https://github.com/ThHSzR/homelab/releases/tag/a30-remote-v1.0.0) · [Instruções completas](LEIA-ME.txt) · [Validação](VALIDACAO.md)
-
-## Windows 10/11 x64
-
-No PowerShell, baixe e abra o instalador:
+## Windows: um comando no PowerShell
 
 ```powershell
-Invoke-WebRequest 'https://github.com/ThHSzR/homelab/releases/download/a30-remote-v1.0.0/Instalar-A30-Windows-x64.exe' -OutFile "$env:TEMP\Instalar-A30.exe"
-Start-Process "$env:TEMP\Instalar-A30.exe" -Wait
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/ThHSzR/homelab/main/tools/a30-remote/install.ps1' | iex"
 ```
 
-Abra **A30 Remoto** pelo atalho no menu Iniciar ou na área de trabalho. Para desinstalar, use **Aplicativos instalados** ou o atalho de desinstalação. Requer OpenSSH Client e .NET Framework 4.5 ou superior; o instalador não tem assinatura Authenticode.
+Funciona no Windows PowerShell 5.1 e PowerShell 7. Instala para o usuário, cria os atalhos e abre o menu A30 Remoto. Se scrcpy/ADB faltarem, instala pelo WinGet. Reconhece os pacotes portáteis do WinGet mesmo quando o PATH da sessão ainda não foi atualizado. Salva os caminhos locais no cliente e os redescobre se o pacote for movido.
 
-## Linux x86_64
+Requer Windows 10/11 x64, .NET Framework 4.5+, OpenSSH Client e WinGet (Instalador de Aplicativo da Microsoft Store). Se faltar OpenSSH Client, habilite esse recurso opcional do Windows. Conecte o Tailscale à mesma Tailnet do A30.
 
-No terminal, sem `sudo`:
+Feche uma instância anterior do A30 Remoto antes de atualizar. Falhas são mostradas no terminal. A instalação confere a execução do cliente em modo ajuda antes de declarar sucesso; isso não autentica a máquina no A30.
+
+No clone:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\a30-remote\install.ps1
+```
+
+Opções: `-Check` verifica dependências sem instalar ou abrir o cliente; `-NoLaunch` instala sem abrir o menu; `-SkipDependencies` impede instalar pacotes; `-Ref <branch-ou-commit>` escolhe a revisão dos fontes raw. Ao fixar um commit na URL, use o mesmo valor em `-Ref`.
+
+## Linux: um comando no Bash
 
 ```bash
-curl -fL 'https://github.com/ThHSzR/homelab/releases/download/a30-remote-v1.0.0/Instalar-A30-Linux-x86_64.run' -o Instalar-A30-Linux-x86_64.run
-bash Instalar-A30-Linux-x86_64.run
+curl -fL --retry 2 https://raw.githubusercontent.com/ThHSzR/homelab/main/tools/a30-remote/install.sh -o /tmp/a30-install.sh && bash /tmp/a30-install.sh
 ```
 
-Abra **A30 Remoto** no menu de aplicativos ou execute `~/.local/bin/a30-remote`. Requer Bash, OpenSSH Client, Python 3, glibc, libudev, libcap e sessão gráfica. O instalador verifica o SHA256 do payload antes de extraí-lo. Testado no Ubuntu/WSL; não suporta ARM.
+Alternativa com wget:
 
-## Primeiro uso em cada computador
+```bash
+wget -O /tmp/a30-install.sh https://raw.githubusercontent.com/ThHSzR/homelab/main/tools/a30-remote/install.sh && bash /tmp/a30-install.sh
+```
 
-1. Conecte o computador à mesma tailnet do A30, com acesso a `100.65.49.34:8022`.
-2. No aplicativo, escolha **Configurar SSH**. Uma chave local já autorizada será reutilizada. Caso contrário, o assistente cria uma chave nesta máquina e pede a senha SSH do Termux para cadastrar a chave pública. Se o login por senha estiver desativado, use uma sessão já autorizada para cadastrar a chave pública mostrada pelo assistente.
-3. Escolha **Conectar tela**. Aceite a autorização ADB no A30 quando solicitada. Nenhuma senha, chave privada ou sessão está incluída nos pacotes.
+Execute como usuário normal. Se faltarem dependências, o script usa sudo com apt, dnf ou pacman para instalar ADB, scrcpy, OpenSSH e Python 3. Não usa sudo para instalar o cliente no perfil. Se o repositório da distribuição não oferecer scrcpy compatível (>= 2 e as opções de túnel/teste), o instalador interrompe com a explicação. Não adiciona repositórios externos automaticamente.
 
-O ADB TCP precisa estar ativo no telefone. Após reboot ou desativação, conecte USB a uma máquina autorizada e escolha **Ativar ADB TCP por USB e conectar**, ou execute `adb -s RQ8M70A9WBP tcpip 5555`.
+O cliente precisa de sessão gráfica para exibir a tela. A instalação cria `~/.local/bin/a30-remote` e uma entrada no menu. Use:
 
-Fechar o scrcpy encerra o túnel desta sessão e mantém o ADB TCP ativo para reconectar. **Desativar ADB TCP** fecha a porta do Android e exige reativação por USB. O Android atual escuta em todas as interfaces na porta 5555 enquanto o modo TCP está ativo: use somente redes confiáveis e desligue o modo TCP quando necessário. O túnel SSH protege o caminho utilizado; não altera o firewall do celular.
+```bash
+~/.local/bin/a30-remote configurar-ssh
+~/.local/bin/a30-remote conectar
+```
 
-A identidade do servidor SSH é fixada pela chave pública em `known_hosts`. Confira o telefone antes de atualizar essa chave. Ela não é uma credencial de acesso.
+No clone:
 
-## Conferir os arquivos
+```bash
+bash tools/a30-remote/install.sh
+```
 
-O arquivo `SHA256SUMS.txt` na Release contém os hashes dos instaladores e documentos. Os binários de terceiros foram conferidos contra os hashes publicados no [projeto oficial scrcpy](https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1), e suas licenças acompanham os pacotes.
+Opções: `--check` apenas verifica dependências; `A30_SKIP_DEPENDENCIES=1` impede instalar pacotes; `A30_REF=<branch-ou-commit>` escolhe os fontes raw. O instalador também aceita stdin (`bash -s`).
 
-## Compilar
+## Primeiro acesso e atualização
 
-Em Windows x64 com PowerShell 5.1+, compilador .NET Framework e `tar`:
+Escolha **Configurar SSH** no menu e informe a senha do Termux diretamente ao SSH. Cada máquina cria sua própria chave; somente a chave pública é cadastrada no A30. Se o login por senha estiver desabilitado, um administrador precisa cadastrar a chave pública apresentada em `~/.ssh/authorized_keys` no Termux. A instalação não substitui essa autorização.
+
+Depois, escolha **Conectar tela**. O gateway existente permite esse cadastro sem USB ou outra confirmação ADB na tela do A30. Tailscale e autenticação SSH continuam necessários.
+
+Execute novamente o mesmo instalador para atualizar. Chaves e logs são preservados; destinos de outra origem são recusados. No Windows, o cliente fica em `%LOCALAPPDATA%\Programs\A30Remoto`, com desinstalação em Aplicativos instalados. No Linux, fica em `~/.local/share/a30-remote`.
+
+## Gateway: provisionamento único ou recuperação
+
+O gateway já instalado não precisa ser reinstalado para cada cliente. Para provisionar, use o clone em uma máquina com ADB e SSH já autorizados:
+
+```bash
+bash tools/a30-remote/provision-gateway.sh
+```
+
+Usa `adb` do PATH, dispositivo `10.150.235.246:5555` e configuração SSH `~/.local/state/a30-remote/ssh_config`. Sobrescreva com `A30_LOCAL_ADB`, `A30_LOCAL_SERIAL` e `A30_SSH_CONFIG` quando necessário. A chave ADB segue por stdin do SSH, sem impressão ou inclusão no repositório.
+
+O ADB central fica em um socket Unix privado do Termux. Os clientes abrem túneis SSH para ADB e vídeo, sem publicar o protocolo ADB na LAN/Tailnet. Para revogar uma máquina, remova somente sua chave pública de `authorized_keys`. Se o Android revogar a identidade ADB ou não oferecer transporte após reiniciar, será necessário acesso local para recuperar o gateway.
+
+## Testes e arquitetura
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\a30-remote\build.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\a30-remote\test-windows.ps1
 ```
 
-O script baixa as duas distribuições oficiais de scrcpy, confere hashes fixados, compila o cliente e o instalador Windows e gera o instalador Linux. Os resultados ficam em `tools/a30-remote/dist/`. Cache e resultados de compilação são ignorados pelo Git. Não são necessários arquivos de `C:\Tools` nem credenciais para compilar.
+```bash
+bash tools/a30-remote/test-install.sh
+shellcheck tools/a30-remote/a30-remote tools/a30-remote/a30-adb-gateway tools/a30-remote/*.sh
+pwsh -File tools/a30-remote/test-remote.ps1
+```
+
+Os testes usam dependências simuladas e diretórios temporários; o teste Windows compila o instalador sem instalá-lo no perfil real. O workflow executa os testes em Windows e Linux. O fluxo não baixa pacotes do HomeLab: o Windows compila os pequenos componentes locais, e o Linux instala os fontes. Dependências vêm dos gerenciadores de pacotes.
+
+[Instruções](LEIA-ME.txt) · [Arquitetura e segurança](ARQUITETURA.md) · [Validação e limites dos testes](VALIDACAO.md)

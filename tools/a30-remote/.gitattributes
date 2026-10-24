@@ -1,3 +1,4 @@
 a30-remote text eol=lf
+a30-adb-gateway text eol=lf
 *.sh text eol=lf
 known_hosts text eol=lf
