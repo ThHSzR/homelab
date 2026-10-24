@@ -1,0 +1,39 @@
+.kw-section { scroll-margin-top: 26px; }
+.kw-main h3 { margin: 18px 0 8px; font-size: clamp(1.2rem,3vw,1.8rem); overflow-wrap: anywhere; }
+.kw-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.kw-toolbar button { min-height: 40px; }
+.kw-state { color: #93c5fd; font-size: .88rem; }
+.kw-state.warn, .kw-error { color: #ffd09b; }
+.kw-error { padding: 12px; border: 1px solid #8c6239; border-radius: 9px; background: #3f2a1b44; font-size: .8rem; overflow-wrap: anywhere; }
+.kw-select-label { display: block; margin: 22px 0 7px; color: var(--muted); font-size: .75rem; }
+#kw-book { width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #14141b; font: inherit; font-size: .8rem; }
+.kw-progress-heading { display: flex; justify-content: space-between; gap: 12px; margin-top: 24px; font-size: .76rem; color: var(--muted); }
+.kw-progress-heading strong { color: #bfdbfe; font-weight: 600; text-align: right; }
+#kw-progress { display: block; width: 100%; height: 11px; margin-top: 10px; border: 0; border-radius: 8px; accent-color: #389aff; overflow: hidden; background: #1b2535; }
+#kw-progress::-webkit-progress-bar { background: #1b2535; border-radius: 8px; }
+#kw-progress::-webkit-progress-value { background: linear-gradient(90deg,#007cff,#8ad2ff); border-radius: 8px; }
+#kw-progress::-moz-progress-bar { background: #389aff; }
+.kw-note { color: var(--muted); font-size: .76rem; line-height: 1.6; }
+.kw-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 18px 0; }
+.kw-stats div { display: grid; gap: 9px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+.kw-stats small { color: var(--muted); font-size: .64rem; letter-spacing: .05em; }
+.kw-stats strong { font-size: 1.35rem; font-weight: 650; }
+.kw-artifacts { display: flex; flex-wrap: wrap; gap: 12px; }
+.kw-download { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 16px; background: #007cff; color: #fff; border-radius: 9px; text-decoration: none; font-size: .83rem; font-weight: 650; }
+.kw-download:hover { background: #218dff; }
+.kw-secondary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-top: 16px; }
+.kw-secondary > article { min-width: 0; }
+.kw-secondary h3 { margin-top: 10px; font-size: 1rem; }
+.kw-model { color: #bfdbfe; font: .73rem/1.5 ui-monospace,monospace; overflow-wrap: anywhere; }
+#kw-log-details > summary { cursor: pointer; padding: 14px 0; color: #bfdbfe; font-size: .85rem; }
+.kw-log-toolbar { margin-top: 14px; }
+#kw-log-content { min-height: 160px; max-height: 430px; }
+.kw-section :focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
+@media (max-width: 1000px) { .kw-secondary { grid-template-columns: 1fr; } }
+@media (max-width: 520px) {
+  .kw-stats { gap: 6px; }
+  .kw-stats div { padding: 10px; }
+  .kw-stats small { font-size: .58rem; }
+  .kw-progress-heading { flex-direction: column; gap: 6px; }
+  .kw-progress-heading strong { text-align: left; }
+}

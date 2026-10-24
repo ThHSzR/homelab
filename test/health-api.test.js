@@ -32,6 +32,7 @@ test('health API returns 503 until first sample, then reports fresh and stale st
     // or read private state, even when npm test runs directly in Termux.
     env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', WATCHDOG_STATE_DIR: dir,
       HOME: dir, USERPROFILE: dir, PREFIX: path.join(dir, 'usr'), PM2_HOME: path.join(dir, '.pm2'),
+      KINDLE_WRITER_DIR: path.join(dir, 'kindle-writer'),
       BOM_DIA_MANAGER: 'pm2', MINECRAFT_CONTROL_ENABLED: '0', TAILSCALE_CONTROL_ENABLED: '0' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -85,6 +86,10 @@ test('health API returns 503 until first sample, then reports fresh and stale st
   await createMonitor({ dir, now: () => Date.now() - 120000, probes: {} }).tick();
   assert.equal((await (await fetch(healthUrl)).json()).stale, true);
   assert.equal((await fetch(url + '/')).status, 200);
+  const writer = await fetch(url + '/api/kindle-writer/status');
+  assert.equal(writer.status, 200);
+  assert.equal(writer.headers.get('cache-control'), 'no-store');
+  assert.equal((await writer.json()).installed, false);
   const sample = { timestamp: new Date().toISOString(), history: [], devices: [], traffic: [], ports: [] };
   await fs.writeFile(path.join(dir, 'network.json'), JSON.stringify(sample));
   const network = await fetch(url + '/api/network');

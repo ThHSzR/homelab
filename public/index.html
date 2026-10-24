@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030305"><title>TH HomeLab · Central</title><link rel="stylesheet" href="/style.css"><script defer src="/insights.js"></script><script defer src="/app.js"></script><script defer src="/network.js"></script><script defer src="/wol.js"></script><script defer src="/terminal-widget.js"></script></head>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030305"><title>TH HomeLab · Central</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/kindle-writer.css"><script defer src="/insights.js"></script><script defer src="/app.js"></script><script defer src="/network.js"></script><script defer src="/wol.js"></script><script defer src="/kindle-writer.js"></script><script defer src="/terminal-widget.js"></script></head>
 <body><div class="shell"><aside><a class="brand" href="/"><span>HomeLab</span></a><div class="side-label">SEU ESPAÇO, CONECTADO</div><nav aria-label="Navegação principal">
   <a class="selected" href="#overview">Visão geral <span>↗</span></a>
   <a href="#services">Serviços</a>
+  <a href="#kindle-writer">Livros com IA</a>
   <a href="#minecraft">Minecraft</a>
   <a href="#system">Telemetria</a>
   <a href="#network">Rede</a>
@@ -19,6 +20,28 @@
 <section id="services"><div class="section-title"><h2>Serviços</h2><span id="health-summary" role="status">Aguardando monitor</span></div><div id="health-list" class="health-grid"></div><p id="health-recovery">Recuperação automática desativada por padrão.</p><div class="panel uptime-panel"><h3>Disponibilidade · 7 dias</h3><p>Percentual do tempo observado; lacunas de coleta aparecem como sem dados.</p><div id="uptime-list" class="uptime-list">Aguardando histórico.</div></div></section>
 <section id="desktop-wol"><div class="section-title"><h2>Desktop · Wake-on-LAN</h2><span id="wol-updated" role="status">Aguardando configuração</span></div><div class="panel wol-card"><div class="wol-info"><span class="eyebrow">THIAGO-PC · WINDOWS</span><h3 id="wol-state">Verificando…</h3><p id="wol-detail">O Galaxy A30 envia o pacote pela rede local.</p><small id="wol-network">Interface e broadcast: aguardando leitura.</small><p id="wol-result" role="status" aria-live="polite"></p></div><div class="wol-actions"><button id="wol-wake" type="button" disabled>⏻ Ligar desktop</button><button id="wol-refresh" type="button" class="wol-secondary">↻ Verificar</button></div></div></section>
 <section id="minecraft"><div class="section-title"><div class="minecraft-heading"><img src="/grass-block.png" alt="Bloco de grama do Minecraft" width="64" height="64"><h2>Minecraft</h2></div><span id="minecraft-updated">Aguardando monitor</span></div><div class="minecraft-card"><div><div class="eyebrow">SERVIDOR LOCAL</div><h3 id="minecraft-state">Verificando…</h3><p id="minecraft-detail">Porta padrão 25565</p></div><div class="minecraft-metrics"><div><small>MEMÓRIA DO PROCESSO</small><strong id="minecraft-memory">—</strong></div><div><small>CPU DO PROCESSO</small><strong id="minecraft-cpu">—</strong><small id="minecraft-cpu-reason">Aguardando medição</small></div><div><small>JOGADORES</small><strong id="minecraft-players">—</strong></div></div><small id="minecraft-process">Aguardando processo Java</small></div></section><div class="details"><section class="panel"><div class="eyebrow">REDE PRIVADA</div><h2>Tailscale</h2><div class="tailscale-split"><div id="tailscale-android"><h3>Tailscale · Android</h3><strong id="tail-ip" class="mono">—</strong><p id="tail-status">Verificando interface…</p><small>VPN do aplicativo Android · somente monitoramento. Interface ativa não confirma alcance remoto.</small></div><div id="tailscale-termux"><h3>Tailscale · Termux / PM2</h3><strong id="tail-termux-ip" class="mono">—</strong><p id="tail-termux-status">Verificando daemon userspace…</p><small>Instância separada · conexão remota não verificada.</small></div></div></section><section class="panel"><div class="eyebrow">CONTINUIDADE</div><h2>Inicialização automática</h2><strong id="boot-state">Aguardando leitura</strong><p id="boot-detail">—</p><small>PM2 mantém a central em execução; Termux:Boot restaura os serviços ao iniciar o Android.</small></section></div>
+<section id="kindle-writer" class="kw-section">
+  <div class="section-title"><div><div class="eyebrow">GERAÇÃO LOCAL · GALAXY A30</div><h2>Livros com IA</h2></div><span id="kw-updated" role="status">Aguardando leitura</span></div>
+  <div class="panel kw-main">
+    <div class="kw-toolbar"><span id="kw-worker" class="pill">Worker: verificando</span><button id="kw-refresh" type="button">↻ Atualizar</button></div>
+    <h3 id="kw-title">Consultando Kindle Writer…</h3>
+    <p id="kw-state" class="kw-state" role="status">Aguardando progresso.</p>
+    <p id="kw-error" class="kw-error" hidden></p>
+    <label class="kw-select-label" for="kw-book">Livro acompanhado</label><select id="kw-book" disabled><option>Nenhum livro</option></select>
+    <div class="kw-progress-heading"><span>Etapas salvas</span><strong id="kw-progress-label">Sem progresso</strong></div>
+    <progress id="kw-progress" max="100" value="0" aria-label="Checkpoints do livro"></progress>
+    <p class="kw-note">Percentual de checkpoints; as etapas têm durações diferentes.</p>
+    <div class="kw-stats"><div><small>PLANOS</small><strong id="kw-plans">—</strong></div><div><small>CENAS SALVAS</small><strong id="kw-scenes">—</strong></div><div><small>CAPÍTULOS REVISADOS</small><strong id="kw-chapters">—</strong></div></div>
+    <p id="kw-checkpoint" class="kw-note"></p><div id="kw-artifacts" class="kw-artifacts"></div>
+    <p id="kw-options" class="kw-note">Consultando agendamento e envio…</p>
+  </div>
+  <div class="kw-secondary">
+    <article class="panel"><div class="eyebrow">MOTOR DE IA</div><h3 id="kw-inference">Aguardando inferência</h3><p id="kw-inference-detail" class="kw-note"></p><p id="kw-model" class="kw-model"></p><div id="kw-resources" class="system-list"></div><p class="kw-note">A temperatura informada é da bateria. RAM e bateria atuais do aparelho estão na telemetria.</p></article>
+    <article class="panel"><h3>Logs ao vivo</h3><p class="kw-note">Abra para acompanhar eventos ou o texto que o modelo está gerando. A coleta continua no A30 ao fechar esta página.</p>
+      <details id="kw-log-details"><summary>Acompanhar geração</summary><div class="log-toolbar kw-log-toolbar"><label>Canal<select id="kw-log-channel"><option value="events">Eventos e erros</option><option value="generation">Saída do modelo</option></select></label><button id="kw-log-follow" type="button" aria-pressed="false">Pausar log</button></div><p id="kw-log-note" class="kw-note">Atualização a cada 5 segundos enquanto aberto.</p><pre id="kw-log-content" class="logs-content" tabindex="0" aria-label="Últimas linhas do Kindle Writer">Carregando…</pre></details>
+    </article>
+  </div>
+</section>
 <section id="system" class="system-section">
   <div class="section-title"><div><div class="eyebrow">DISPOSITIVO · ANDROID / TERMUX</div><h2>Telemetria do sistema</h2></div><span id="system-updated">Coletando sensores…</span></div>
   <div id="system-highlights" class="system-highlights">

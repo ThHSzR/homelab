@@ -21,6 +21,7 @@ Atualmente a central acompanha informações como:
 - persistência dos serviços após reinicialização;
 - módulos existentes e planejados do HomeLab.
 - alertas dentro do painel, histórico de disponibilidade e verificações dos túneis publicados.
+- geração local de livros: etapas, capítulos, inferência, logs e EPUBs do Kindle Writer.
 
 A interface visual segue a mesma identidade do meu portfólio, com tema escuro, detalhes em azul e componentes responsivos.
 
@@ -44,6 +45,27 @@ Notebook / Desktop
        |
        +-- TH HomeLab
 ```
+
+## Monitor de livros com IA
+
+O menu **Livros com IA** acompanha o [Kindle Writer](https://github.com/ThHSzR/kindle-writer), instalado separadamente em `~/services/kindle-writer`. Exibe o livro atual e o histórico, planos/cenas/capítulos salvos, tentativa e erro atual, worker PM2, modelo, contexto, threads, RSS da inferência e métricas da última chamada. O percentual representa checkpoints, sem estimar o tempo restante.
+
+Abra **Logs ao vivo → Acompanhar geração** para alternar entre eventos/erros e saída parcial do modelo. Os dados do painel atualizam a cada 15 segundos; o log aberto, a cada 5 segundos. Abas ocultas suspendem as consultas e **Pausar log** suspende apenas o acompanhamento. A geração continua no telefone. O download de amostra/livro aparece quando o EPUB existir.
+
+A integração usa apenas leitura de arquivos e a coleta PM2 já existente. Não inicia inferência, não cria outro worker, não altera a fila e não envia mensagens. A configuração privada é lida somente para extrair o nome do modelo e limites numéricos/indicadores de envio; credenciais, destinatários, prompts, banco e caminhos privados não são retornados. Logs têm limite de 16 KiB/120 linhas e redação de segredos conhecidos. Downloads aceitam somente nomes EPUB previstos, dentro de `books/`, com rejeição de links simbólicos.
+
+Rotas de leitura, sob a mesma proteção de acesso do dashboard:
+
+```text
+GET /api/kindle-writer/status
+GET /api/kindle-writer/status?book=ID
+GET /api/kindle-writer/logs?channel=events
+GET /api/kindle-writer/logs?channel=generation&book=ID
+GET /api/kindle-writer/books/ID-amostra.epub
+GET /api/kindle-writer/books/ID.epub
+```
+
+Se o aplicativo ainda não estiver instalado, o painel informa isso sem prejudicar os outros módulos. `KINDLE_WRITER_DIR` permite configurar outra pasta local. Pausa, retomada, criação de livros e SMTP continuam no CLI do repositório Kindle Writer. Revisão automática não garante consistência literária; o EPUB experimental precisa de leitura humana.
 
 ## Tecnologias
 
