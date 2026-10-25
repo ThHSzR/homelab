@@ -1,0 +1,7 @@
+#!/data/data/com.termux/files/usr/bin/sh
+export HOME=/data/data/com.termux/files/home
+export PREFIX=/data/data/com.termux/files/usr
+export PATH="$PREFIX/bin:$PATH"
+umask 077
+mkdir -p "$HOME/services/homelab-cluster/logs"
+"$HOME/services/homelab-cluster/.venv/bin/python" "$HOME/services/homelab-cluster/boot.py" >> "$HOME/services/homelab-cluster/logs/boot.log" 2>&1

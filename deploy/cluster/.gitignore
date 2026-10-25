@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+cluster.json
+redis.conf
+logs/
+state/
+ssh/id_ed25519
