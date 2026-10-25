@@ -3,4 +3,4 @@ export HOME=/data/data/com.termux/files/home
 export PREFIX=/data/data/com.termux/files/usr
 export PATH="$PREFIX/bin:$PATH"
 umask 077
-pm2 start "$HOME/services/tailscale-userspace/ecosystem.config.cjs" --only tailscale-userspace
+"$PREFIX/bin/node" "$PREFIX/lib/node_modules/pm2/bin/pm2" start "$HOME/services/tailscale-userspace/ecosystem.config.cjs" --only tailscale-userspace

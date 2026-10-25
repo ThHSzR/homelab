@@ -7,6 +7,7 @@ import subprocess
 import time
 import urllib.request
 from pathlib import Path
+from pm2_runtime import PM2
 
 ROOT = Path(__file__).resolve().parent
 
@@ -56,7 +57,7 @@ def probe_service(name):
 
 def service_status():
     """Return PM2 process state without environment, arguments or credentials."""
-    result = subprocess.run(['pm2', 'jlist'], capture_output=True, text=True,
+    result = subprocess.run(PM2 + ['jlist'], capture_output=True, text=True,
                             timeout=10, check=True)
     return {'node': config()['node'], 'services': [
         {'name': item['name'], 'status': item.get('pm2_env', {}).get('status'),
