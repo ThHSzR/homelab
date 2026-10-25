@@ -10,7 +10,7 @@ O PRoot 5.1.107.101 também substituiu netlink por respostas emuladas após dete
 
 Fonte base: termux/proot, commit `b27d81a68d765f3462e807f4a14e01a03f8e89ea`. `proot-netlink-read.patch` contém a alteração completa. `build-compat.sh` reproduz a compilação com clang, make e libtalloc do Termux. Esta variante se destina ao daemon userspace; não usar como solução genérica para configurar redes no bubblewrap. Não houve alteração de SELinux nem obtenção de privilégios.
 
-O teste no aparelho confirmou interfaces/endereços reais dentro do PRoot e comunicação com controlplane.tailscale.com. A identidade `a10s-termux` foi autenticada na mesma tailnet do A30. Ping entre as instâncias userspace, SSH autenticado via Serve e uma tarefa SHA-256 pelo novo transporte passaram. A inicialização física após reboot ainda está em validação nesta etapa.
+O teste no aparelho confirmou interfaces/endereços reais dentro do PRoot e comunicação com controlplane.tailscale.com. A identidade `a10s-termux` foi autenticada na mesma tailnet do A30. Ping entre as instâncias userspace, SSH autenticado via Serve e uma tarefa SHA-256 pelo novo transporte passaram. O primeiro teste de reboot encontrou Termux:Boot como nunca aberto; aguarda-se essa abertura manual e um novo teste. Os testes de conectividade acima ocorreram antes desse reboot.
 
 ## Instalação e operação
 
