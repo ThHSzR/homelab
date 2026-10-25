@@ -71,6 +71,8 @@ def kindle_check(payload):
     writer_root = ROOT.parent / 'kindle-writer'
     if not (writer_root / 'cluster_jobs.py').is_file():
         raise RuntimeError('Instale o módulo de conferência do Kindle Writer neste nó.')
-    sys.path.insert(0, str(writer_root))
-    from cluster_jobs import run
-    return {**run(payload), 'node': config()['node']}
+    # O Python global tem os pacotes nativos Termux (Pillow). O venv RQ fica inalterado.
+    result = subprocess.run([sys._base_executable, str(writer_root / 'cluster_jobs.py')],
+        input=json.dumps(payload, ensure_ascii=False), capture_output=True, text=True,
+        timeout=50, check=True)
+    return {**json.loads(result.stdout), 'node': config()['node']}
