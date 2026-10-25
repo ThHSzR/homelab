@@ -15,3 +15,9 @@ Essa correção foi necessária porque o coletor chamava o Termux:API a cada 15 
 O escritor recebeu uma reação direta no leitor de logs, ao primeiro reclaim, com teste de que somente o processo de inferência associado recebe o sinal. Isso não garante isolamento contra o Android. O candidato menor Qwen3.5-2B Q4_K_M ainda precisa concluir download e testes antes da promoção. A auditoria final dos serviços depende da recuperação do A30.
 
 Validação final de código desta etapa: 80 testes Python no A10s (21,510 s) e 93 testes Node no PC. Nenhuma inferência no desktop e nenhum envio real de mensagem nesta rodada. O relatório completo e as pendências ficam no `VALIDACAO.md` do Kindle Writer. Os dois repositórios receberam pushes normais, preservando as alterações do outro trabalho do cluster.
+
+## Recuperação confirmada
+
+O proprietário executou o script existente e o A30 voltou a responder por SSH por volta das 13h30 de 25/10. O boot próprio restaurou Redis e o worker; o A10s foi reconectado e voltou a concluir uma conferência real. SQLite íntegro, endpoints de saúde e rede HTTP 200. As auditorias privadas `cluster-recovered.json` e `cluster-ready.json`, no Kindle Writer, registram os processos após a recuperação. A pendência de recuperação descrita acima foi resolvida, preservando o dump compartilhado.
+
+Os testes de 4B continuam suspensos. Qwen3.5-2B Q4_K_M e SmolLM3-3B Q3_K_M foram conferidos e testados somente no A30. Responderam ao teste JSON, mas ainda precisam passar a conferência de prosa e planejamento com a amostragem corrigida. Um teste SmolLM3 foi interrompido por uma rajada de recolhimentos de cache, preservando todos os serviços; nenhum candidato foi promovido nessa etapa. O livro continua pausado até uma admissão válida. A validação atual do escritor passou em **89 testes Python no A10s**, em 21,807 s. Não houve reinício adicional do painel, envio real de mensagem ou inferência no PC.
