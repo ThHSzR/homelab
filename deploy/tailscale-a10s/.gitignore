@@ -1,0 +1,9 @@
+bin/
+compat/
+source-proot/
+build-proot/
+state/
+logs/
+passwd
+*.tgz
+*.tar.gz
