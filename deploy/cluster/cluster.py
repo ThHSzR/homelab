@@ -8,10 +8,12 @@ import time
 from pathlib import Path
 
 from redis import Redis
-from rq import Queue, Worker
+from rq import Worker
 from rq.job import Job
 from rq.registry import FailedJobRegistry, StartedJobRegistry
 from rq.serializers import JSONSerializer
+from rq.intermediate_queue import IntermediateQueue
+from reserved_queue import ReservedQueue, ReservedWorker
 
 import tasks
 
@@ -31,7 +33,7 @@ def connection():
 
 
 def queue(name, conn):
-    return Queue(name, connection=conn, serializer=JSONSerializer,
+    return ReservedQueue(name, connection=conn, serializer=JSONSerializer,
                  default_timeout=30)
 
 
@@ -47,6 +49,7 @@ def status(conn):
         'queues': {
             name: {
                 'waiting': queue(name, conn).count,
+                'reserved': conn.llen(IntermediateQueue.get_intermediate_queue_key(queue(name, conn).key)),
                 'started': StartedJobRegistry(name, connection=conn).count,
                 'failed': FailedJobRegistry(name, connection=conn).count,
             } for name in QUEUE_NAMES
@@ -75,7 +78,8 @@ def main():
         cfg = tasks.config()
         queues = [queue(name, conn) for name in cfg['queues']]
         os.nice(10)
-        worker = Worker(queues, name='homelab-' + cfg['node'], connection=conn,
+        worker = ReservedWorker(queues, name='homelab-' + cfg['node'], connection=conn,
+                        queue_class=ReservedQueue,
                         serializer=JSONSerializer, worker_ttl=120,
                         maintenance_interval=60, log_job_description=False)
         worker.work(burst=args.burst, logging_level='INFO')

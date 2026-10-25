@@ -21,7 +21,18 @@ O Redis mantém os jobs em AOF com sincronização a cada segundo. Há possibili
 
 As credenciais ficam em `cluster.json` e `redis.conf`, ambos modo 600. Não copiar esses arquivos para repositórios ou logs. O A10s acessa o Redis por túnel SSH ao A30, com identidade própria, host key fixada e chave autorizada somente para encaminhar a porta do broker. O transporte atual tem `master.transport: "tailscale"` e usa o CLI userspace local como ProxyCommand. As duas identidades userspace foram autenticadas e validadas; a VPN Android também está configurada.
 
-`boot.py` inicia somente os processos deste componente e é chamado por `95-homelab-cluster`, no Termux:Boot. Não executar `pm2 save` sobre o dump compartilhado. A inicialização foi testada manualmente; um reboot real ainda não foi validado.
+`boot.py` é chamado por `95-homelab-cluster`, no Termux:Boot. No A10s, inicia o Tailscale userspace antes do túnel e do worker; usar apenas 95 para essa sequência, mantendo o boot 90 separado fora da pasta de boot. No A30 inicia somente o broker e o worker deste cluster. As chamadas PM2 usam Node explicitamente para funcionar no ambiente mínimo de boot. Não executar `pm2 save` sobre o dump compartilhado. A retomada automática do A10s passou em um reboot real; a auditoria de 25/10 registra o teste adicional com trabalho pendente.
+
+`reserved_queue.py` usa a reserva atômica LMOVE do RQ para cada fila, preservando a prioridade e um job por worker. A consulta de várias filas usa polling de até um segundo, em vez do BLPOP que retirava o ID sem reserva. `ReservedWorker` confirma a reserva na transação normal de preparação da execução. `status` mostra também `reserved`. Reservas abandonadas são tratadas pela manutenção do RQ e ficam visíveis como falha; revisar a tarefa antes de reenfileirar para evitar efeitos duplicados. Essa mudança requer Redis 6.2+ e foi testada com as versões fixadas no projeto.
+
+Antes de uma reinicialização planejada, execute no aparelho:
+
+```sh
+cd ~/services/homelab-cluster
+.venv/bin/python quiesce.py
+```
+
+Isso encerra o worker antes do túnel. O reboot Android continua sendo feito pelo ADB ou pelo proprietário. `verify_reservations.py` testa reserva, reconexão, falha visível, reenfileiramento e confirmação da execução em filas descartáveis, sem consumir jobs das filas de produção.
 
 Para interromper apenas a base nova no A30:
 

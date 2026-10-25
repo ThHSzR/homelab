@@ -10,7 +10,7 @@ O PRoot 5.1.107.101 também substituiu netlink por respostas emuladas após dete
 
 Fonte base: termux/proot, commit `b27d81a68d765f3462e807f4a14e01a03f8e89ea`. `proot-netlink-read.patch` contém a alteração completa. `build-compat.sh` reproduz a compilação com clang, make e libtalloc do Termux. Esta variante se destina ao daemon userspace; não usar como solução genérica para configurar redes no bubblewrap. Não houve alteração de SELinux nem obtenção de privilégios.
 
-O teste no aparelho confirmou interfaces/endereços reais dentro do PRoot e comunicação com controlplane.tailscale.com. A identidade `a10s-termux` foi autenticada na mesma tailnet do A30. Ping entre as instâncias userspace, SSH autenticado via Serve e uma tarefa SHA-256 pelo novo transporte passaram. O primeiro teste de reboot encontrou Termux:Boot como nunca aberto; aguarda-se essa abertura manual e um novo teste. Os testes de conectividade acima ocorreram antes desse reboot.
+O teste no aparelho confirmou interfaces/endereços reais dentro do PRoot e comunicação com controlplane.tailscale.com. A identidade `a10s-termux` foi autenticada na mesma tailnet do A30. Ping entre as instâncias userspace, SSH autenticado via Serve e tarefas pelo novo transporte passaram, inclusive após reboot. Termux:Boot já foi aberto; a chamada direta ao Node corrigiu a partida do PM2 no ambiente de boot. Veja a auditoria de reinicialização em `docs/`.
 
 ## Instalação e operação
 
@@ -29,8 +29,8 @@ pm2 start ecosystem.config.cjs
 ./cli.sh status
 ```
 
-`90-tailscale-userspace` deve ser copiado para `~/.termux/boot/`, após abrir Termux:Boot uma vez. O supervisor reinicia somente este daemon quando sai ou deixa de responder localmente; falta de Internet ou login não causa reinício por si só.
+Para instalação independente, copiar `90-tailscale-userspace` para `~/.termux/boot/`, após abrir Termux:Boot uma vez. No A10s deste cluster, usar somente `95-homelab-cluster`: ele inicia também esta dependência. O supervisor reinicia somente este daemon quando sai ou deixa de responder localmente; falta de Internet ou login não causa reinício por si só.
 
 A instância userspace permite conexões de saída com `./cli.sh nc HOST PORT` e publica o SSH via Serve privado. Ela não cria acesso transparente para todos os programas do Termux. O aplicativo Android continua responsável pela VPN do sistema. Uma instância pode transportar tráfego pela outra; independência de conectividade precisa de teste específico.
 
-Estado, arquivos passwd, logs, binários, links de autenticação e credenciais ficam fora do Git. Para parar somente esta instância: `pm2 stop tailscale-userspace`; remover o boot 90 se quiser preservar a parada após reinicialização.
+Estado, arquivos passwd, logs, binários, links de autenticação e credenciais ficam fora do Git. Para parar somente esta instância: `pm2 stop tailscale-userspace`. A rotina de boot correspondente a inicia novamente no próximo reboot.
