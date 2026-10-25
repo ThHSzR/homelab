@@ -101,6 +101,7 @@ status() {
 case "${1:-start}" in
     start) start ;;
     status) start >/dev/null && status ;;
+    battery) start >/dev/null && adb_cmd -s "$(find_device)" shell dumpsys battery ;;
     stop) adb_cmd kill-server >/dev/null 2>&1 || true; rm -f -- "$ADB_SOCKET" ;;
-    *) fail 'Uso: a30-adb-gateway {start|status|stop}'; exit 2 ;;
+    *) fail 'Uso: a30-adb-gateway {start|status|battery|stop}'; exit 2 ;;
 esac

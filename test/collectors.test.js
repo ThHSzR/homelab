@@ -1,6 +1,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseDisk, parseProcesses, tailnetAddress, command } = require('../lib/collectors');
+const { parseDisk, parseProcesses, parseAdbBattery, tailnetAddress, command } = require('../lib/collectors');
+
+test('ADB battery telemetry uses deci-C units and rejects missing or simulated readings', () => {
+  const text = 'USB powered: true\npresent: true\nlevel: 100\nscale: 100\nstatus: 5\nhealth: 2\ntemperature: 304\nhealth: vendor.health\n';
+  const result = parseAdbBattery(text);
+  assert.equal(result.temperature, 30.4);
+  assert.equal(result.percentage, 100);
+  assert.equal(result.health, 'GOOD');
+  assert.equal(result.status, 'FULL');
+  assert.equal(result.source, 'adb-dumpsys-battery');
+  assert.equal(parseAdbBattery(text + 'USE_FAKE_BATTERY: true\n'), null);
+  assert.equal(parseAdbBattery(text.replace('temperature: 304', 'temperature: unavailable')), null);
+});
 
 test('PM2 missing metrics remain unavailable while actual idle CPU and zero memory remain zero', () => {
   const entries = parseProcesses(JSON.stringify([
