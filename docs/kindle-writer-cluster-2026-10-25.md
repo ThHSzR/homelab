@@ -14,4 +14,4 @@ Essa correção foi necessária porque o coletor chamava o Termux:API a cada 15 
 
 O escritor recebeu uma reação direta no leitor de logs, ao primeiro reclaim, com teste de que somente o processo de inferência associado recebe o sinal. Isso não garante isolamento contra o Android. O candidato menor Qwen3.5-2B Q4_K_M ainda precisa concluir download e testes antes da promoção. A auditoria final dos serviços depende da recuperação do A30.
 
-Validação de código até esta etapa: 79 testes Python no A10s e 93 testes Node no PC. Nenhuma inferência no desktop e nenhum envio real de mensagem nesta rodada. O relatório completo e as pendências ficam no `VALIDACAO.md` do Kindle Writer. Os dois repositórios receberam pushes normais, preservando as alterações do outro trabalho do cluster.
+Validação final de código desta etapa: 80 testes Python no A10s (21,510 s) e 93 testes Node no PC. Nenhuma inferência no desktop e nenhum envio real de mensagem nesta rodada. O relatório completo e as pendências ficam no `VALIDACAO.md` do Kindle Writer. Os dois repositórios receberam pushes normais, preservando as alterações do outro trabalho do cluster.
