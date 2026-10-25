@@ -21,3 +21,11 @@ Validação final de código desta etapa: 80 testes Python no A10s (21,510 s) e 
 O proprietário executou o script existente e o A30 voltou a responder por SSH por volta das 13h30 de 25/10. O boot próprio restaurou Redis e o worker; o A10s foi reconectado e voltou a concluir uma conferência real. SQLite íntegro, endpoints de saúde e rede HTTP 200. As auditorias privadas `cluster-recovered.json` e `cluster-ready.json`, no Kindle Writer, registram os processos após a recuperação. A pendência de recuperação descrita acima foi resolvida, preservando o dump compartilhado.
 
 Os testes de 4B continuam suspensos. Qwen3.5-2B Q4_K_M e SmolLM3-3B Q3_K_M foram conferidos e testados somente no A30. Responderam ao teste JSON, mas ainda precisam passar a conferência de prosa e planejamento com a amostragem corrigida. Um teste SmolLM3 foi interrompido por uma rajada de recolhimentos de cache, preservando todos os serviços; nenhum candidato foi promovido nessa etapa. O livro continua pausado até uma admissão válida. A validação atual do escritor passou em **89 testes Python no A10s**, em 21,807 s. Não houve reinício adicional do painel, envio real de mensagem ou inferência no PC.
+# Verificação posterior do cluster
+
+O escritor chegou a **106 testes Python aprovados no A10s**, em 21,305 s. Duas tarefas adicionais de conferência real no nó `a10s` aceitaram a prosa válida e rejeitaram a vítima morta agindo. A inferência permanece exclusiva do A30; o A10s recebe conferências determinísticas e validação de EPUB.
+
+A telemetria de Wi-Fi também usava Termux:API. Em `577cb3d`, o gateway passou a consultar `cmd wifi status` e o endereço de `wlan0`. Foram aprovados 96 testes Node no PC e 12 testes de telemetria no A30. O painel foi reiniciado intencionalmente: PID 13283 → 31083, contador 0 → 1. Os demais serviços mantiveram seus processos. Bateria e Wi-Fi passaram a informar as fontes ADB esperadas.
+
+A auditoria privada `cluster-pre-admission.json` confirmou serviços e arquivos protegidos iguais a `cluster-wifi-after-restart.json`, com HTTP 200 em `/healthz`, `/api/health` e `/api/network`. O dump PM2 compartilhado permanece preservado. Os probes de admissão do SmolLM3-3B Q3_K_M continuam; esta entrada não afirma que a geração foi retomada. SMTP automático e agendamento de novos livros continuam desativados.
+
