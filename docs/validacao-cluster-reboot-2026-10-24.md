@@ -1,5 +1,7 @@
 # Validação de reinicialização do A10s — 24/10/2026
 
+Continuação concluída: [validação final de 25/10](validacao-cluster-reboot-2026-10-25.md). Este arquivo preserva o diagnóstico e os testes intermediários.
+
 ## Primeiro teste após abrir Termux:Boot
 
 O aplicativo passou a `stopped=false, notLaunched=false`. O reboot físico incrementou o contador de boot de 4 para 5 e alterou o identificador de boot. O Android retornou ao ADB sem nova autorização; a VPN Tailscale nativa conectou sozinha e respondeu a ping vindo do A30. O broadcast de boot chegou ao Termux:Boot, e o SSH foi iniciado automaticamente.

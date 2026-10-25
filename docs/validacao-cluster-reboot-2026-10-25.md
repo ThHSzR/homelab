@@ -14,6 +14,12 @@ A tarefa órfã era somente um SHA-256 de teste. Após conferir a função e a a
 
 ## Teste final planejado
 
-`quiesce.py` encerrou o worker do A10s antes de fechar seu túnel. A tarefa `f43ec991-12d3-470c-98b8-19b10a8ce96f` foi enfileirada com o worker parado; o Redis confirmou waiting=1, reserved=0, started=0. O terceiro reboot está em andamento. Esse teste final ainda aguarda a confirmação de retomada e execução automática.
+`quiesce.py` encerrou o worker do A10s antes de fechar seu túnel. A tarefa `f43ec991-12d3-470c-98b8-19b10a8ce96f` foi enfileirada com o worker parado; o Redis confirmou waiting=1, reserved=0, started=0.
+
+O terceiro reboot passou: contador 6 para 7 e novo identificador de boot. SSH, VPN Android, Tailscale userspace, túnel e worker retornaram pela rotina de boot. Nenhum comando remoto de partida foi executado após esse reboot. A tarefa pendente concluiu automaticamente no A10s, retornando SHA-256 `a2f882b57cf045388dd15d909fedb0fd967194b3c87f2fcb0b94ce3a4fc5bff6`. O SSH autenticado pelo Serve userspace também passou.
+
+Na conferência final, os três processos do A10s estavam online com restart_time=0. Os dois workers estavam presentes e idle. Todas as filas estavam com waiting=0, reserved=0, started=0 e failed=0. A comparação dos PIDs e estados confirmou que os serviços anteriores do A30 permaneceram iguais ao início da auditoria; somente o worker deste cluster foi reiniciado para carregar as correções.
+
+A partida do Termux depende da entrega do broadcast do Android e levou alguns minutos no aparelho testado. Esta validação cobre a configuração atual e reboot planejado; não estabelece execução exatamente uma vez nem testa troca de Wi-Fi ou perda abrupta de energia. Reservas abandonadas exigem conferir a falha antes de reenfileirar uma tarefa com possíveis efeitos externos.
 
 O A30 não foi reiniciado. Somente o worker do cluster recebeu as atualizações; root do A10s continua pendente e nenhuma imagem de firmware foi gravada nesta etapa.
