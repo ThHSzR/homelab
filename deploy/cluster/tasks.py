@@ -63,3 +63,14 @@ def service_status():
         {'name': item['name'], 'status': item.get('pm2_env', {}).get('status'),
          'pid': item.get('pid'), 'memory': item.get('monit', {}).get('memory')}
         for item in json.loads(result.stdout)]}
+
+
+def kindle_check(payload):
+    """Conferência pura; implementação e versões pertencem ao repositório Kindle Writer."""
+    import sys
+    writer_root = ROOT.parent / 'kindle-writer'
+    if not (writer_root / 'cluster_jobs.py').is_file():
+        raise RuntimeError('Instale o módulo de conferência do Kindle Writer neste nó.')
+    sys.path.insert(0, str(writer_root))
+    from cluster_jobs import run
+    return {**run(payload), 'node': config()['node']}

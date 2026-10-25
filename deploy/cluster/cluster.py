@@ -23,6 +23,7 @@ TASKS = {
     'hash': tasks.hash_text,
     'probe': tasks.probe_service,
     'services': tasks.service_status,
+    'kindle-check': tasks.kindle_check,
 }
 QUEUE_NAMES = ('a30', 'a10s', 'general')
 
