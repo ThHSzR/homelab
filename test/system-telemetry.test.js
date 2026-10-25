@@ -1,4 +1,31 @@
 const test = require('node:test');
+const {parseAdbWifi} = require('../lib/system-telemetry');
+
+const adbWifiFixture = 'Wifi is connected to "LAB_TEST"\nWifiInfo: SSID: LAB_TEST, RSSI: -42, Link speed: 72Mbps, Frequency: 2427MHz\nIPv4:\n4: wlan0 inet 192.0.2.5/24 brd 192.0.2.255 scope global wlan0';
+test('ADB Wi-Fi preserves connection fields and rejects disconnected output', () => {
+  assert.deepEqual(parseAdbWifi(adbWifiFixture), {available:true,ssid:'LAB_TEST',source:'adb-cmd-wifi',
+    ip:'192.0.2.5',rssi:-42,linkSpeedMbps:72,frequencyMhz:2427});
+  assert.equal(parseAdbWifi('Wifi is disabled').available,false);
+});
+
+test('a provisioned ADB gateway supplies Wi-Fi without waking Termux API', async () => {
+  const calls=[];
+  const sampler=createSystemSampler({termux:true,fsList:async()=>[],
+    fsRead:async p=>p.endsWith('device-serial')?'127.0.0.1:5555':null,
+    run:async (file,args)=>{calls.push([file,args]);return {ok:true,text:file==='bash'?adbWifiFixture:'Android'};}});
+  assert.equal((await sampler.sample()).wifi.source,'adb-cmd-wifi');
+  assert.equal(calls.filter(([file])=>file.startsWith('termux-')).length,0);
+  assert.ok(calls.some(([file,args])=>file==='bash' && args[1]==='wifi'));
+});
+
+test('an unavailable provisioned gateway does not fall back to Termux API', async () => {
+  const calls=[];
+  const sampler=createSystemSampler({termux:true,fsList:async()=>[],
+    fsRead:async p=>p.endsWith('device-serial')?'127.0.0.1:5555':null,
+    run:async (file,args)=>{calls.push([file,args]);return {ok:false,text:''};}});
+  assert.equal((await sampler.sample()).wifi.available,false);
+  assert.equal(calls.filter(([file])=>file.startsWith('termux-')).length,0);
+});
 const assert = require('node:assert/strict');
 const {
   parseCpu, cpuUsage, parseMemory, parsePressure, parseNetDev, networkRates,
