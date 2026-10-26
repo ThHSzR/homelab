@@ -6,7 +6,7 @@ module.exports = { apps: [{ name: 'homelab-status', script: 'server.js', cwd: __
   max_memory_restart: '180M', time: true,
   out_file: path.join(os.homedir(), 'services/logs/homelab-status-out.log'),
   error_file: path.join(os.homedir(), 'services/logs/homelab-status-error.log'),
-  env: { NODE_ENV: 'production', PORT: '3000', HOST: '127.0.0.1',
+  env: { NODE_ENV: 'production', PORT: '3000', HOST: process.env.HOST || '0.0.0.0',
     BOM_DIA_MANAGER: process.env.BOM_DIA_MANAGER || 'pm2',
    
     MINECRAFT_CONTROL_ENABLED: process.env.MINECRAFT_CONTROL_ENABLED || '0',

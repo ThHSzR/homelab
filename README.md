@@ -142,7 +142,7 @@ pm2 status
 pm2 logs homelab-status
 ```
 
-Por padrão, a central escuta apenas na porta local:
+Por padrão, a central escuta em IPv4 (`HOST=0.0.0.0`) na porta 3000, com acesso direto restrito a endereços privados da LAN e loopback:
 
 ```text
 127.0.0.1:3000
@@ -390,7 +390,7 @@ Dashboard e recuperação do watchdog compartilham o diretório de lock `.homela
 
 ### Cloudflare Access e atualização no Android
 
-1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. A autenticação ocorre nesse acesso ao site. O Express escuta somente em `127.0.0.1`: configure a origem do Cloudflare Tunnel como `http://127.0.0.1:3000`. O próprio Express não exige outro login nem valida JWT. Acessos diretos pelo localhost não passam pelo Cloudflare Access; não exponha a porta 3000 na LAN, tailnet ou Internet.
+1. Proteja **todo o hostname do dashboard**, inclusive `/api/services`, com aplicação Cloudflare Access self-hosted e política Allow dos administradores, sem Bypass. A autenticação ocorre nesse acesso ao site. O Express atende também a LAN em `http://IP-LOCAL-DO-A30:3000`; mantenha a origem do Cloudflare Tunnel como `http://127.0.0.1:3000`. O próprio Express não exige outro login nem valida JWT. O acesso direto pela LAN confiável é autorizado; conexões diretas de IP público ou tailnet são rejeitadas pelo endereço real do socket, independentemente de headers encaminhados.
 2. No Termux, atualize e instale as dependências (Node 22 ou superior):
 
 ```bash
@@ -499,7 +499,7 @@ export TAILSCALE_CONTROL_ENABLED='0'
 
 Cloudflare Access continua protegendo o hostname completo. O backend **não** pede JWT, AUD, validação de identidade, header administrativo ou login adicionais; `GET /api/services`, `/api/network` e `/api/logs` respondem normalmente depois que a requisição alcança o Express. Não existe mais `lib/access.js`.
 
-**Limite da arquitetura:** o Cloudflare Access protege apenas as requisições que atravessam a borda Cloudflare; `curl http://127.0.0.1:3000/api/services` pelo próprio Termux alcança o Express diretamente. Isso é intencional neste laboratório. Mantenha `HOST=127.0.0.1`, o túnel apontado para `http://127.0.0.1:3000` e nunca publique a porta de controle diretamente na LAN ou na Internet.
+**Limite da arquitetura:** o Cloudflare Access protege as requisições pelo domínio público; o acesso pelo IP privado da LAN ou localhost chega diretamente ao Express, sem outro login. A LAN é uma rede confiável neste laboratório. O padrão `HOST=0.0.0.0` restaura esse acesso mesmo após reiniciar; `HOST=127.0.0.1` continua disponível como opção explícita. O túnel permanece em `http://127.0.0.1:3000`. O middleware rejeita peers públicos e da tailnet, não libera CORS e exige Origin e Host iguais ao IP/porta reais para ações pela LAN; headers falsificados de proxy não concedem acesso.
 
 ```sh
 cd ~/services/homelab
@@ -541,7 +541,7 @@ Defina `TAILSCALE_CONTROL_ENABLED='1'` no arquivo privado e reaplique o ecossist
 
 ### Limites e validação
 
-POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop em JSON de até 1 KB. O Cloudflare Access é a única autenticação do painel; o Express permanece no loopback e não libera CORS. Não há rate limit nem verificação de identidade no Express. Um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
+POST aceita apenas `bom-dia`, `minecraft`, `tailscale-userspace` e start/stop em JSON de até 1 KB. O Cloudflare Access é a autenticação do domínio público; o IP privado da LAN também permite acesso direto e o Express não libera CORS. Não há rate limit nem verificação de identidade no Express. Um bloqueio global da API serializa operações e cada gerenciador mantém seu lock exclusivo em disco, inclusive contra recuperação. O estado desejado é gravado antes de comandos e os limites de cada subprocesso são explícitos. Não execute operadores externos de PM2 enquanto uma operação estiver em andamento.
 
 Logs `[control]` registram serviço, ação e resultado, sem token, senha ou corpo do pedido. Minecraft retorna 202; resultado final e erros vêm de GET. Os demais gerenciadores retornam após confirmar PM2, com timeout de rede de 65 s no navegador. Um timeout não equivale a cancelamento: confira estado antes de repetir. Em caso de crash com lock residual, pare os controladores, confirme que não existe operação em curso e arquive o lock para inspeção; nunca o remova para disputar uma ação ativa.
 
@@ -659,3 +659,18 @@ Teste tanto em suspensão quanto depois de desligamento, pois o comportamento de
 ### Atalho Android, IFTTT e Alexa
 
 O cartão funciona remotamente no dashboard protegido pelo Access. É possível criar um atalho Android para o dashboard ou usar HTTP Shortcuts com um POST autenticado. IFTTT Webhooks exigiria integração separada e autenticação específica para serviço (sem expor chaves no frontend); não foi habilitado automaticamente. A Alexa e a skill RemoteRelay também são integrações opcionais futuras.
+
+### Acesso pela rede local
+
+Abra `http://IP-LOCAL-DO-A30:3000` no mesmo Wi-Fi. Em 25/10/2026, o A30 estava em `http://192.168.1.18:3000`; esse endereço pode mudar pelo DHCP. O Express aceita loopback e peers IPv4 RFC1918 (192.168/16, 10/8 e 172.16/12). O domínio público mantém a política Cloudflare Access. As operações da LAN exigem a página aberta pelo IP local, com Origin/Host correspondentes, para impedir comandos enviados por outro site.
+
+Para aplicar a configuração a uma instalação que estava apenas em loopback, sem reiniciar os demais serviços:
+
+```sh
+cd ~/services/homelab
+git pull --ff-only origin main
+HOST=0.0.0.0 pm2 restart homelab-status --update-env
+pm2 save
+```
+
+Se existir um `export HOST=127.0.0.1` no arquivo privado de ambiente, altere para `export HOST=0.0.0.0`. O ecossistema também usa o padrão LAN nas próximas recargas.

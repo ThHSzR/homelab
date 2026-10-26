@@ -16,6 +16,7 @@ const minecraft = createMinecraftController();
 const tailscale = require('./lib/tailscale-control').createTailscaleController();
 const app = express();
 app.disable('x-powered-by');
+app.use(require('./lib/lan-access').lanAccess);
 let snapshot = null;
 const powerTracker = createPowerTracker();
 let collecting = false;
@@ -84,7 +85,7 @@ app.use('/api/kindle-writer', createKindleRouter({
   processes: () => ({ entries: snapshot?.processes, at: snapshot?.timestamp })
 }));
 app.use(express.static(path.join(__dirname, 'public')));
-const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => {
+const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => {
   console.log('TH HomeLab disponível na porta', server.address().port);
   refresh();
 });
