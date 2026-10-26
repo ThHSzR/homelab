@@ -29,3 +29,11 @@ A telemetria de Wi-Fi também usava Termux:API. Em `577cb3d`, o gateway passou a
 
 A auditoria privada `cluster-pre-admission.json` confirmou serviços e arquivos protegidos iguais a `cluster-wifi-after-restart.json`, com HTTP 200 em `/healthz`, `/api/health` e `/api/network`. O dump PM2 compartilhado permanece preservado. Os probes de admissão do SmolLM3-3B Q3_K_M continuam; esta entrada não afirma que a geração foi retomada. SMTP automático e agendamento de novos livros continuam desativados.
 
+## Geração retomada às 21h07 de 25/10
+
+O A30 retomou o livro experimental `20261024-7c84a9ce` com SmolLM3-3B Q3_K_M, após smoke, planejamento e cena estruturada completos. A prosa de teste preservou os fatos impostos pelo contrato, mas apresentou clichês e linguagem artificial; não foi declarada qualidade editorial profissional. O perfil admite contexto até 3072 e usa 2048 quando suficiente, cache Q8, dois threads e micro-lote 16. Não há teto de RSS; o monitor de pressão do Android continua ativo. Modelos 4B permanecem suspensos.
+
+Worker Kindle Writer PID 29926, sem reinícios, status `escrevendo`, primeira cena em processamento com o runtime PID 30208. O A10s executou as conferências reais de aceitação/rejeição com o código atual; **107 testes Python passaram** em 21,743 s. O backup e o arquivo do rascunho rejeitado foram concluídos antes da retomada.
+
+A auditoria final confirmou SQLite íntegro, serviços e arquivos protegidos preservados, dump PM2 intacto e os três endpoints de saúde/rede HTTP 200. O único reinício do painel nesta etapa continua sendo o já documentado 13283 → 31083. Nenhuma inferência no desktop, mensagem de teste ou agendamento Codex criado. SMTP automático e novos livros agendados continuam desligados. Ainda não há novo capítulo ou EPUB; o andamento está no monitor existente.
+
