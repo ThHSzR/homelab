@@ -37,3 +37,11 @@ Worker Kindle Writer PID 29926, sem reinícios, status `escrevendo`, primeira ce
 
 A auditoria final confirmou SQLite íntegro, serviços e arquivos protegidos preservados, dump PM2 intacto e os três endpoints de saúde/rede HTTP 200. O único reinício do painel nesta etapa continua sendo o já documentado 13283 → 31083. Nenhuma inferência no desktop, mensagem de teste ou agendamento Codex criado. SMTP automático e novos livros agendados continuam desligados. Ainda não há novo capítulo ou EPUB; o andamento está no monitor existente.
 
+## Consulta posterior: livro falhou na primeira cena
+
+Após a retomada, o livro experimental `20261024-7c84a9ce` falhou em `chapter-01-scene-1` após três rejeições por referências a tempo nos campos livres. Nenhuma cena nova foi persistida; não há primeiro capítulo ou EPUB novo. O worker 29926 permanece online sem reinícios, mas não reprocessa automaticamente esse livro no estado `falhou`.
+
+A análise identificou filtro excessivo para expressões relativas e também problemas reais nos rascunhos, como durações inventadas e confusão entre posto e pedágio. Os rascunhos foram preservados, sem publicação. O diagnóstico detalhado está no `VALIDACAO.md` do repositório independente Kindle Writer.
+
+A auditoria desta consulta encontrou os endpoints de saúde/rede HTTP 200 e preservou a atualização LAN `776ff3f`, já instalada por outro trabalho. Painel PID 21756, contador 2; demais serviços protegidos com os PIDs anteriores. Nenhum serviço foi reiniciado nesta consulta. SMTP automático e novos livros agendados continuam desligados.
+
