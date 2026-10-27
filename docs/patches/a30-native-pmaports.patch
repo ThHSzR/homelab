@@ -1,5 +1,5 @@
 diff --git a/device/archived/device-samsung-a30/APKBUILD b/device/archived/device-samsung-a30/APKBUILD
-index df9c8d1..ceeeb3b 100644
+index df9c8d1..cc663cd 100644
 --- a/device/archived/device-samsung-a30/APKBUILD
 +++ b/device/archived/device-samsung-a30/APKBUILD
 @@ -35,7 +35,7 @@ nonfree_firmware() {
@@ -7,15 +7,15 @@ index df9c8d1..ceeeb3b 100644
  
  sha512sums="
 -44c2dd7e223f41c58c24bc45efd38e2b69f8a635532061e7f848ab992d7b8e0e7afc62151fe7e2a1ae0e8d279c235671995e48825117afd109420b0b16e7bdbf  deviceinfo
-+5e4df2028738b84aef764b94df87b832eb5732f8d0f79433eb8b03cef7afaf17cc385e1ed909bc38860ab8dd1da5463564ccfcef7f8bc7bae6fbb21c00b2af68  deviceinfo
++f9bd91b6dcb53ac47fbf005457ea5e05f5b5fbbf88b232ba983991e4c4a19d6a76b01568e34aed6933e6cf17c3681a7bde5779cfc0da27dc0ff058bbfb4e9ac7  deviceinfo
  6263b6dab9ea670bd1af22feff8fb7ce9d143ed5ab99223bcef9da76bb0947c89e62dbf7004e1a307e2b71df48de84ea95cad258d88a44cedb37e347c56db8d2  kernel-cmdline.conf
  1014fefb71430018b0dca4b6d1cc336611be861dcc57635f3cabb90de4e73e4ccfe92517d8fa8d9074b4c52517fcbeeac99b31b44968c740c8b7050348a43295  initfs-hook.sh
  "
 diff --git a/device/archived/device-samsung-a30/deviceinfo b/device/archived/device-samsung-a30/deviceinfo
-index 815e6fd..b3c7e9b 100644
+index 815e6fd..4951b6c 100644
 --- a/device/archived/device-samsung-a30/deviceinfo
 +++ b/device/archived/device-samsung-a30/deviceinfo
-@@ -17,8 +17,11 @@ deviceinfo_screen_height="2340"
+@@ -17,14 +17,18 @@ deviceinfo_screen_height="2340"
  
  # Bootloader related
  deviceinfo_flash_method="heimdall-bootimg"
@@ -27,6 +27,13 @@ index 815e6fd..b3c7e9b 100644
  deviceinfo_flash_offset_kernel="0x00008000"
  deviceinfo_flash_offset_ramdisk="0xf0000000"
  deviceinfo_flash_offset_second="0xf0000000"
+ deviceinfo_flash_offset_tags="0x00000100"
+ deviceinfo_flash_heimdall_partition_kernel="boot"
+ deviceinfo_flash_heimdall_partition_rootfs="system"
++deviceinfo_flash_heimdall_partition_vbmeta="vbmeta"
+ 
+ # Samsung Electronics Co., Ltd
+ deviceinfo_usb_idVendor="0x04e8"
 diff --git a/device/archived/linux-samsung-a30/APKBUILD b/device/archived/linux-samsung-a30/APKBUILD
 index 84f789e..a16cc22 100644
 --- a/device/archived/linux-samsung-a30/APKBUILD
