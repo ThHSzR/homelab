@@ -1,0 +1,42 @@
+diff --git a/device/archived/device-samsung-a30/APKBUILD b/device/archived/device-samsung-a30/APKBUILD
+index df9c8d1..ceeeb3b 100644
+--- a/device/archived/device-samsung-a30/APKBUILD
++++ b/device/archived/device-samsung-a30/APKBUILD
+@@ -35,7 +35,7 @@ nonfree_firmware() {
+ 
+ 
+ sha512sums="
+-44c2dd7e223f41c58c24bc45efd38e2b69f8a635532061e7f848ab992d7b8e0e7afc62151fe7e2a1ae0e8d279c235671995e48825117afd109420b0b16e7bdbf  deviceinfo
++5e4df2028738b84aef764b94df87b832eb5732f8d0f79433eb8b03cef7afaf17cc385e1ed909bc38860ab8dd1da5463564ccfcef7f8bc7bae6fbb21c00b2af68  deviceinfo
+ 6263b6dab9ea670bd1af22feff8fb7ce9d143ed5ab99223bcef9da76bb0947c89e62dbf7004e1a307e2b71df48de84ea95cad258d88a44cedb37e347c56db8d2  kernel-cmdline.conf
+ 1014fefb71430018b0dca4b6d1cc336611be861dcc57635f3cabb90de4e73e4ccfe92517d8fa8d9074b4c52517fcbeeac99b31b44968c740c8b7050348a43295  initfs-hook.sh
+ "
+diff --git a/device/archived/device-samsung-a30/deviceinfo b/device/archived/device-samsung-a30/deviceinfo
+index 815e6fd..b3c7e9b 100644
+--- a/device/archived/device-samsung-a30/deviceinfo
++++ b/device/archived/device-samsung-a30/deviceinfo
+@@ -17,8 +17,11 @@ deviceinfo_screen_height="2340"
+ 
+ # Bootloader related
+ deviceinfo_flash_method="heimdall-bootimg"
++deviceinfo_initfs_compression="gzip"
+ deviceinfo_generate_bootimg="true"
++deviceinfo_header_version="1"
+ deviceinfo_flash_pagesize="2048"
++deviceinfo_flash_offset_base="0x10000000"
+ deviceinfo_flash_offset_kernel="0x00008000"
+ deviceinfo_flash_offset_ramdisk="0xf0000000"
+ deviceinfo_flash_offset_second="0xf0000000"
+diff --git a/device/archived/linux-samsung-a30/APKBUILD b/device/archived/linux-samsung-a30/APKBUILD
+index 84f789e..a16cc22 100644
+--- a/device/archived/linux-samsung-a30/APKBUILD
++++ b/device/archived/linux-samsung-a30/APKBUILD
+@@ -65,7 +65,7 @@ package() {
+ }
+ 
+ sha512sums="
+-76be6d88311496b07918bfdb07b4af5623c890e0b2dc5e923258444dfda825ec0e1222d4af52a11b27905916c9ea1662214355163e63f2f8f93a78f95cac4f77  linux-samsung-a30-5eeafe2bfcb93847b403fd92bd92f9d0a9f6341d.tar.gz
++e475f94a2e8aae7ae80860cc474112dddce9ca2851ac79f60af941624d08b0b0f2e4dc463197c97875e83c428ee25833daa33bf6596f5303f91f2dccd9985649  linux-samsung-a30-5eeafe2bfcb93847b403fd92bd92f9d0a9f6341d.tar.gz
+ 182be3c596b9cc267ac108d7cf03fc8c328ccc6b36770800e4dcedea8d1bb65e3f5eacf590c2948f58b1418cc60a1670ba77dde8c259e428d158c31b6e1dbaf5  fix-check-lxdialog.patch
+ 65da43ce42dfc9eff3e0c2c2c367b6ca9e45786ddec8c3949b8f4095927288cd19f6722e859c72f98299621c3bf4280547f6009babb7de47df210aa44d0497d8  makefiles_fix.patch
+ eaf2e61fcb508cdd239b8fed209d2a09ecac77287f6b46d003918fdf1c6fa2ee63f7390f3ff7c49029b8ed6cbcdd81c7e9a4b1ece9f5060b6fc84e322bd47f41  linux4.2-gcc10-extern_YYLOC_global_declaration.patch
