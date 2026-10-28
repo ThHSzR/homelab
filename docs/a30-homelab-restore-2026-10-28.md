@@ -6,8 +6,9 @@ Objetivo: reinstalar o ambiente HomeLab no Android stock do Galaxy A30 `SM-A305G
 
 - ADB identifica `RQ8M70A9WBP` como `SM-A305GT`; Android terminou o boot (`sys.boot_completed=1`). Só este serial foi alvo.
 - O backup em `A:\homelab-a30-native-2026-10-27\backup` contém `termux-home`, `termux-prefix`, `termux-prefix-var.tar.gz`, serviços e estado. Os projetos `kindle-writer` estão no backup, mas **não fazem parte da restauração**.
-- APKs oficiais atuais baixados em `A:\homelab-a30-serveros-2026-10-27\apks`: Termux 0.118.3 arm64, Termux:API 0.53.0 e Termux:Boot 0.8.1. SHA-256 pendente.
-- O envio/instalação ADB do Termux ficou pendente sem resposta do Package Manager após transferência. Nenhum pacote Termux consta instalado. ADB segue conectado.
+- Termux 0.118.3 arm64, Termux:API 0.53.0 e Termux:Boot 0.8.1 instalados via ADB. APKs em `A:\homelab-a30-serveros-2026-10-27\apks`.
+- Backup de `termux-home` copiado para o usuário Termux, excluindo `services/kindle-writer`, `winterhold`, `winterhold-apk`, checkpoints temporários e histórico de shell. Inclui `services/homelab`, Bom Dia, Minecraft, chaves/config SSH e arquivos de estado.
+- Redis, Node.js, Python e OpenSSH **ainda não foram instalados**. O `apt-cache` lista versões candidatas no repositório oficial, mas `apt-get install` responde “Unable to locate package”; investigar o índice/ambiente do Termux antes de iniciar serviços.
 - Tailscale Android 1.104.2 está instalado, sem configuração confirmada após a restauração stock.
 
 ## Próximo passo
