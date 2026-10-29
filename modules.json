@@ -1,5 +1,6 @@
 [
   { "id": "monitoring", "name": "Monitoramento", "state": "active", "description": "Serviços, memória, armazenamento e rede" },
+  { "id": "financas-hub", "name": "Finanças Hub", "state": "active", "description": "Painel financeiro pessoal no A30; modo demo local ativo, aguardando consentimento Meu Pluggy" },
   { "id": "kindle-writer", "name": "Livros com IA", "state": "active", "description": "Progresso, memória da inferência, logs e download de EPUBs do Kindle Writer" },
   { "id": "network", "name": "Rede local", "state": "active", "description": "Latência, perda, DNS, dispositivos, portas e tráfego por interface" },
   { "id": "logs", "name": "Logs centralizados", "state": "active", "description": "Saídas limitadas do PM2, Minecraft, Playit e Cloudflare" },
